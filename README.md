@@ -343,5 +343,5 @@ Every investigation action is recorded in a tamper-evident hash-chain:
 
 ## 📄 License
 
-Built for SIH 2024 — Problem Statement 26106 — AICTE Cyber Security Cell  
-© 2024 TraceVault Team. All rights reserved.
+Built for SIH 2026 — Problem Statement 26106 — AICTE Cyber Security Cell  
+© 2026 TraceVault Team. All rights reserved.
