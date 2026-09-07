@@ -218,7 +218,7 @@ class AuthValidatorService:
         dmarc_result = self._dmarc_from_parsed(parsed_auth)
 
         # --- Live SPF ---
-        if _HAS_SPF and sender_ip and parsed_email.from_addr:
+        if _HAS_SPF and sender_ip and parsed_email.from_addr and (not spf_result or spf_result.result in ("none", "neutral", "error", "")):
             try:
                 live_spf = await self.check_spf_live(
                     sender_ip=sender_ip,
@@ -232,7 +232,7 @@ class AuthValidatorService:
                 notes.append(f"Live SPF check failed: {exc}")
 
         # --- Live DKIM ---
-        if _HAS_DKIM and raw_bytes:
+        if _HAS_DKIM and raw_bytes and not (dkim_result and dkim_result.is_valid):
             try:
                 live_dkim = await self.verify_dkim(raw_bytes)
                 live_dkim.source = "live"
@@ -245,7 +245,7 @@ class AuthValidatorService:
                 notes.append(f"Live DKIM verification failed: {exc}")
 
         # --- Live DMARC ---
-        if _HAS_CHECKDMARC and parsed_email.from_domain:
+        if _HAS_CHECKDMARC and parsed_email.from_domain and not (dmarc_result and dmarc_result.result == "pass"):
             try:
                 live_dmarc = await self.check_dmarc_policy(parsed_email.from_domain)
                 live_dmarc.source = "live"
