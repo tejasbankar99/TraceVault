@@ -52,12 +52,77 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function OverviewTab({ caseData, analysis }: { caseData: Case | undefined, analysis: AnalysisResult | undefined }) {
-  if (!analysis) return (
-    <div className="text-center py-16 text-muted-foreground">
-      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-      <p>Analysis in progress or not yet started...</p>
-    </div>
-  )
+  const PIPELINE_STEPS = [
+    { key: 'parsing',         label: 'Parse Email',           pct: 10 },
+    { key: 'header_forensics',label: 'Header Forensics',      pct: 20 },
+    { key: 'auth_validation', label: 'Auth Validation',       pct: 30 },
+    { key: 'ioc_extraction',  label: 'IOC Extraction',        pct: 45 },
+    { key: 'ai_analysis',     label: 'AI Threat Analysis',    pct: 60 },
+    { key: 'geo_intelligence',label: 'Geo Intelligence',      pct: 75 },
+    { key: 'correlation',     label: 'Threat Correlation',    pct: 88 },
+    { key: 'blockchain',      label: 'Blockchain Log',        pct: 95 },
+    { key: 'finalizing',      label: 'Finalizing',            pct: 100 },
+  ]
+
+  if (!analysis) {
+    const isAnalyzing = caseData?.status === 'ANALYZING'
+    const isPending   = caseData?.status === 'PENDING'
+    const isFailed    = caseData?.status === 'FAILED'
+
+    return (
+      <div className="glass-card space-y-6 py-8 px-6">
+        <div className="text-center">
+          {isFailed ? (
+            <>
+              <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+              <p className="text-foreground font-semibold">Analysis Failed</p>
+              <p className="text-muted-foreground text-sm mt-1">An error occurred during pipeline execution.</p>
+            </>
+          ) : (
+            <>
+              <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+              <p className="text-foreground font-semibold">
+                {isAnalyzing ? 'Analysis In Progress' : 'Waiting to Start Analysis'}
+              </p>
+              <p className="text-muted-foreground text-sm mt-1">
+                {isAnalyzing ? 'Running 9-step forensic pipeline...' : 'Click "Run Analysis" to begin'}
+              </p>
+            </>
+          )}
+        </div>
+
+        {(isAnalyzing || isPending) && (
+          <div className="max-w-md mx-auto space-y-2">
+            {PIPELINE_STEPS.map((step, i) => {
+              const done = isAnalyzing && i < 3 // heuristic — show first few as done
+              return (
+                <div key={step.key} className="flex items-center gap-3">
+                  <div className={cn(
+                    'w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0',
+                    done
+                      ? 'bg-green-600 text-white'
+                      : isAnalyzing && i === 3
+                      ? 'bg-primary text-white animate-pulse'
+                      : 'bg-secondary text-muted-foreground'
+                  )}>
+                    {done ? '✓' : i + 1}
+                  </div>
+                  <span className={cn(
+                    'text-sm',
+                    done ? 'text-green-400' : isAnalyzing && i === 3 ? 'text-primary' : 'text-muted-foreground'
+                  )}>
+                    {step.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-auto">{step.pct}%</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -823,11 +888,14 @@ function ReportTab({ caseId }: { caseId: string }) {
 export default function CaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>()
   const [activeTab, setActiveTab] = useState('overview')
+  const [analyzing, setAnalyzing] = useState(false)
 
-  const { data: caseData, isLoading: caseLoading } = useQuery<Case>({
+  const { data: caseData, isLoading: caseLoading, refetch: refetchCase } = useQuery<Case>({
     queryKey: ['case', caseId],
     queryFn: () => casesAPI.get(caseId!),
     enabled: !!caseId,
+    refetchInterval: (data) =>
+      data?.status === 'ANALYZING' || data?.status === 'PENDING' ? 3000 : false,
   })
 
   const { data: analysis } = useQuery<AnalysisResult>({
@@ -835,6 +903,17 @@ export default function CaseDetailPage() {
     queryFn: () => analysisAPI.get(caseId!),
     enabled: !!caseId && caseData?.status === 'COMPLETED',
   })
+
+  const handleRunAnalysis = async () => {
+    if (!caseData) return
+    setAnalyzing(true)
+    try {
+      await analysisAPI.trigger(caseData.case_id)
+      refetchCase()
+    } finally {
+      setAnalyzing(false)
+    }
+  }
 
   if (caseLoading) {
     return (
@@ -898,11 +977,21 @@ export default function CaseDetailPage() {
         </div>
 
         {/* Evidence hash quick view */}
-        <div className="mt-3 pt-3 border-t border-border flex items-center gap-3">
+        <div className="mt-3 pt-3 border-t border-border flex items-center gap-3 flex-wrap">
           <Lock className="w-4 h-4 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">SHA-256:</span>
           <span className="hash-display flex-1 min-w-0">{caseData.evidence_hash}</span>
           <CopyButton text={caseData.evidence_hash} />
+          {(caseData.status === 'PENDING' || caseData.status === 'FAILED') && (
+            <button
+              onClick={handleRunAnalysis}
+              disabled={analyzing}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50 ml-auto"
+            >
+              {analyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
+              {analyzing ? 'Starting...' : 'Run Analysis'}
+            </button>
+          )}
         </div>
       </div>
 

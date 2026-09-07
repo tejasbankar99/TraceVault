@@ -172,9 +172,27 @@ export default function CasesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-sm font-mono text-foreground">
-                      {c.threat_score !== null ? `${c.threat_score}/100` : '—'}
-                    </span>
+                    {c.threat_score !== null ? (
+                      <div className="flex items-center gap-2 min-w-[80px]">
+                        <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              'h-full rounded-full',
+                              c.threat_score >= 80 ? 'bg-red-500' :
+                              c.threat_score >= 60 ? 'bg-orange-500' :
+                              c.threat_score >= 40 ? 'bg-yellow-500' :
+                              c.threat_score >= 20 ? 'bg-blue-500' : 'bg-green-500'
+                            )}
+                            style={{ width: `${c.threat_score}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-mono text-muted-foreground w-8 text-right">
+                          {c.threat_score}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className={cn(
