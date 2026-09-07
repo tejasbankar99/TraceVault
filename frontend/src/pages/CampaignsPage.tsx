@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { GitFork, Calendar, Hash, ChevronDown, ChevronUp, Loader2, AlertTriangle } from 'lucide-react'
+import { GitFork, Calendar, Hash, ChevronDown, ChevronUp, Loader2, AlertTriangle, Network, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { campaignsAPI } from '@/lib/api'
@@ -109,6 +109,10 @@ export default function CampaignsPage() {
     refetchInterval: 60_000,
   })
 
+  // Derived stats
+  const totalCasesAffected = campaigns.reduce((sum, c) => sum + c.case_count, 0)
+  const totalSharedIOCs = campaigns.reduce((sum, c) => sum + c.shared_indicators.length, 0)
+
   return (
     <div className="space-y-6">
       <div>
@@ -117,6 +121,39 @@ export default function CampaignsPage() {
           Phishing campaigns detected by correlating shared indicators across cases
         </p>
       </div>
+
+      {/* Stat Cards */}
+      {!isLoading && !isError && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="glass-card flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-purple-950 border border-purple-800 flex items-center justify-center shrink-0">
+              <GitFork className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{campaigns.length}</p>
+              <p className="text-xs text-muted-foreground">Campaigns Detected</p>
+            </div>
+          </div>
+          <div className="glass-card flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-blue-950 border border-blue-800 flex items-center justify-center shrink-0">
+              <Shield className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{totalCasesAffected}</p>
+              <p className="text-xs text-muted-foreground">Cases Affected</p>
+            </div>
+          </div>
+          <div className="glass-card flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-yellow-950 border border-yellow-800 flex items-center justify-center shrink-0">
+              <Network className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{totalSharedIOCs}</p>
+              <p className="text-xs text-muted-foreground">Shared IOCs Across Campaigns</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center h-40">
