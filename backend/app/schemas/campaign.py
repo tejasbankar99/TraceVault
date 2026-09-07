@@ -24,7 +24,7 @@ class CampaignResponse(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     case_count: int = 0
-    shared_indicators: List[SharedIndicator] = []
+    shared_indicators: Optional[Any] = []
     first_seen: datetime
     last_seen: datetime
     threat_actor_hypothesis: Optional[str] = None
@@ -39,7 +39,7 @@ class CampaignDetailResponse(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     case_count: int = 0
-    shared_indicators: List[SharedIndicator] = []
+    shared_indicators: Optional[Any] = []
     first_seen: datetime
     last_seen: datetime
     threat_actor_hypothesis: Optional[str] = None

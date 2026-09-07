@@ -41,7 +41,7 @@ async def list_iocs(
     per_page: int = Query(default=50, ge=1, le=200),
     ioc_type: Optional[str] = Query(default=None, description="Filter by type: IP|DOMAIN|URL|EMAIL|HASH|FILE"),
     severity: Optional[str] = Query(default=None, description="Filter by severity: CRITICAL|HIGH|MEDIUM|LOW|INFO"),
-    case_id: Optional[UUID] = Query(default=None, description="Filter to a specific case"),
+    case_id: Optional[str] = Query(default=None, description="Filter to a specific case"),
     is_lookalike: Optional[bool] = Query(default=None, description="Filter lookalike-domain IOCs"),
     q: Optional[str] = Query(default=None, description="Search within IOC value"),
 ) -> IOCListResponse:
@@ -115,7 +115,7 @@ async def search_iocs(
 async def export_iocs_csv(
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
-    case_id: Optional[UUID] = Query(default=None, description="Limit export to a specific case"),
+    case_id: Optional[str] = Query(default=None, description="Limit export to a specific case"),
     ioc_type: Optional[str] = Query(default=None),
     severity: Optional[str] = Query(default=None),
 ) -> StreamingResponse:
@@ -152,12 +152,12 @@ async def export_iocs_csv(
                 str(ioc.id),
                 str(ioc.case_id),
                 ioc.ioc_type,
-                ioc.value,
+                ioc.ioc_value,
                 ioc.severity,
                 ioc.is_lookalike,
-                ioc.threat_intel_hits,
-                ioc.description or "",
-                ioc.first_seen.isoformat() if ioc.first_seen else "",
+                0,
+                ioc.context or "",
+                ioc.created_at.isoformat() if ioc.created_at else "",
                 ioc.created_at.isoformat() if ioc.created_at else "",
             ])
             yield buf.getvalue()
@@ -184,7 +184,7 @@ cases_ioc_router = APIRouter()
     tags=["IOCs"],
 )
 async def get_case_iocs(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
     ioc_type: Optional[str] = Query(default=None),

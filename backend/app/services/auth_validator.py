@@ -96,6 +96,32 @@ class AuthValidationResult:
     spoofing_risk: str = "UNKNOWN"               # LOW / MEDIUM / HIGH / CRITICAL
     analysis_notes: list[str] = field(default_factory=list)
 
+    @property
+    def spf_result(self) -> str:
+        return self.spf.result if self.spf else "none"
+
+    @property
+    def spf_domain(self) -> str:
+        return self.spf.domain if self.spf else ""
+
+    @property
+    def dkim_result(self) -> str:
+        if not self.dkim:
+            return "none"
+        return "pass" if self.dkim.is_valid else "fail"
+
+    @property
+    def dkim_domain(self) -> str:
+        return self.dkim.domain if self.dkim else ""
+
+    @property
+    def dmarc_result(self) -> str:
+        return self.dmarc.result if self.dmarc else "none"
+
+    @property
+    def dmarc_policy(self) -> str:
+        return self.dmarc.policy if self.dmarc else "none"
+
 
 # ---------------------------------------------------------------------------
 # Regex helpers for Authentication-Results header parsing

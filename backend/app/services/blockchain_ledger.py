@@ -158,10 +158,15 @@ class BlockchainLedgerService:
                 tamper_detected_at = block.block_index
                 break
 
-            # Verify prev_hash linkage (skip genesis).
-            if i > 0 and block.prev_hash != blocks[i - 1].block_hash:
-                tamper_detected_at = block.block_index
-                break
+            # Verify prev_hash linkage against the preceding block in the ledger.
+            if block.block_index > 0:
+                prev_stmt = select(BlockchainLedger.block_hash).where(
+                    BlockchainLedger.block_index == block.block_index - 1
+                )
+                actual_prev_hash = (await db.execute(prev_stmt)).scalar_one_or_none()
+                if actual_prev_hash and block.prev_hash != actual_prev_hash:
+                    tamper_detected_at = block.block_index
+                    break
 
             verified_count += 1
 

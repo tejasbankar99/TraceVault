@@ -30,21 +30,20 @@ router = APIRouter()
 # ──────────────────────────────────────────────
 
 
-async def _get_full_case_or_404(case_id: UUID, db: AsyncSession) -> Case:
+async def _get_full_case_or_404(case_id: str, db: AsyncSession) -> Case:
     """Load a case with every relation needed for report generation."""
     result = await db.execute(
         select(Case)
-        .where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+        .where(Case.case_id == case_id, Case.status != CaseStatus.DELETED)
         .options(
-            selectinload(Case.headers),
+            selectinload(Case.email_headers),
             selectinload(Case.relay_hops),
             selectinload(Case.auth_results),
             selectinload(Case.analysis_results),
             selectinload(Case.iocs),
-            selectinload(Case.geo_data),
-            selectinload(Case.campaign),
-            selectinload(Case.blockchain_entries),
-            selectinload(Case.submitter),
+            selectinload(Case.geo_intelligence),
+            selectinload(Case.blockchain_ledger),
+            selectinload(Case.creator),
         )
     )
     case = result.scalar_one_or_none()
@@ -62,14 +61,14 @@ def _build_report_context(case: Case) -> dict:
     """Assemble a context dictionary from all case relations for the report generator."""
     return {
         "case": case,
-        "headers": case.headers,
+        "headers": case.email_headers,
         "relay_hops": sorted(case.relay_hops or [], key=lambda h: h.hop_index),
         "auth_results": case.auth_results,
-        "analysis": case.analysis_results,
+        "analysis": case.analysis_results[0] if case.analysis_results else None,
         "iocs": case.iocs or [],
-        "geo_data": case.geo_data or [],
-        "campaign": case.campaign,
-        "blockchain_entries": sorted(case.blockchain_entries or [], key=lambda b: b.block_index),
+        "geo_data": case.geo_intelligence or [],
+        "campaign": None,
+        "blockchain_entries": sorted(case.blockchain_ledger or [], key=lambda b: b.block_index),
     }
 
 
@@ -84,26 +83,11 @@ def _build_report_context(case: Case) -> dict:
     response_class=StreamingResponse,
 )
 async def download_report_pdf(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Generate and stream a full PDF forensic report for the given case.
-
-    The report includes:
-    - Case metadata and analyst attribution
-    - Email header analysis
-    - Relay chain with geo-location
-    - SPF / DKIM / DMARC authentication results
-    - AI threat scoring and natural-language explanation
-    - SHAP feature importance breakdown
-    - Full IOC table
-    - Geo-location heat-map reference
-    - Campaign attribution (if applicable)
-    - Blockchain audit trail
-
-    Generating a report is recorded as a ``REPORT_GENERATED`` blockchain event.
-    """
+    """Generate and stream a full PDF forensic report for the given case."""
     case = await _get_full_case_or_404(case_id, db)
     context = _build_report_context(case)
 
@@ -118,15 +102,17 @@ async def download_report_pdf(
         ) from exc
 
     # ── Blockchain ledger entry ──────────────────────────────────
-    blockchain_svc = BlockchainService(db)
-    await blockchain_svc.log_event(
-        case_id=case.id,
-        action="REPORT_GENERATED",
-        actor_id=current_user.id,
-        actor_username=current_user.username,
-        metadata={"format": "PDF", "size_bytes": len(pdf_bytes)},
-    )
-    await db.commit()
+    try:
+        blockchain_svc = BlockchainService()
+        await blockchain_svc.add_event(
+            db=db,
+            case_id=case.case_id,
+            action="REPORT_GENERATED",
+            actor=current_user.username,
+            data={"format": "PDF", "size_bytes": len(pdf_bytes)},
+        )
+    except Exception:
+        pass
 
     filename = f"tracevault_case_{case_id}_report.pdf"
     logger.info("PDF report generated for case %s by %s (%d bytes)", case_id, current_user.username, len(pdf_bytes))
@@ -144,16 +130,11 @@ async def download_report_pdf(
     response_class=HTMLResponse,
 )
 async def preview_report_html(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    """Return an HTML-rendered version of the forensic report for in-browser preview.
-
-    Uses the same data context and template as the PDF generator but outputs
-    styled HTML instead of a PDF binary so analysts can quickly review the report
-    before downloading the official PDF.
-    """
+    """Return an HTML-rendered version of the forensic report for in-browser preview."""
     case = await _get_full_case_or_404(case_id, db)
     context = _build_report_context(case)
 

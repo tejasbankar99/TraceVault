@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 from uuid import UUID
 
@@ -34,9 +35,9 @@ router = APIRouter()
 # ──────────────────────────────────────────────
 
 
-async def _get_case_or_404(case_id: UUID, db: AsyncSession) -> Case:
+async def _get_case_or_404(case_id: str, db: AsyncSession) -> Case:
     result = await db.execute(
-        select(Case).where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+        select(Case).where(Case.case_id == case_id, Case.status != CaseStatus.DELETED)
     )
     case = result.scalar_one_or_none()
     if case is None:
@@ -72,7 +73,7 @@ async def list_blockchain_entries(
     db: AsyncSession = Depends(get_db),
     page: int = Query(default=1, ge=1),
     per_page: int = Query(default=50, ge=1, le=200),
-    case_id: Optional[UUID] = Query(default=None, description="Filter to a specific case"),
+    case_id: Optional[str] = Query(default=None, description="Filter to a specific case"),
     action: Optional[str] = Query(
         default=None,
         description="Filter by action type (EVIDENCE_SUBMITTED|ANALYST_ACCESSED|REPORT_GENERATED|CASE_DELETED)",
@@ -112,7 +113,7 @@ async def list_blockchain_entries(
     tags=["Blockchain"],
 )
 async def get_case_blockchain(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> list[BlockchainEntryResponse]:
@@ -136,7 +137,7 @@ async def get_case_blockchain(
     tags=["Blockchain"],
 )
 async def verify_case_blockchain(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> BlockchainVerifyResponse:
@@ -165,43 +166,20 @@ async def verify_case_blockchain(
     )
     entries: list[BlockchainEntry] = list(result.scalars().all())
 
-    blockchain_svc = BlockchainService(db)
-    verified_blocks: list[int] = []
-    tamper_detected_at: int | None = None
-    chain_valid = True
+    blockchain_svc = BlockchainService()
+    verify_res = await blockchain_svc.verify_chain(db, case_id=case_id)
 
-    for i, entry in enumerate(entries):
-        block_ok = await blockchain_svc.verify_block(entry)
-        if block_ok:
-            verified_blocks.append(entry.block_index)
-        else:
-            chain_valid = False
-            if tamper_detected_at is None:
-                tamper_detected_at = entry.block_index
-            logger.warning(
-                "Tamper detected in case %s at block %d", case_id, entry.block_index
-            )
-
-    is_valid = evidence_intact and chain_valid
-
-    logger.info(
-        "Chain verification for case %s: is_valid=%s evidence_intact=%s chain_valid=%s",
-        case_id,
-        is_valid,
-        evidence_intact,
-        chain_valid,
-    )
+    is_valid = evidence_intact and verify_res.is_valid
+    summary = "Evidence and blockchain integrity verified" if is_valid else (verify_res.error or "Tampering or integrity mismatch detected")
 
     return BlockchainVerifyResponse(
-        case_id=str(case_id),
         is_valid=is_valid,
-        evidence_intact=evidence_intact,
-        chain_valid=chain_valid,
-        tamper_detected_at=tamper_detected_at,
-        verified_blocks=verified_blocks,
-        total_blocks=len(entries),
-        computed_hash=computed_hash,
-        stored_hash=stored_hash,
+        chain_length=verify_res.total_blocks,
+        verified_blocks=verify_res.verified_blocks,
+        tamper_detected_at=verify_res.tamper_detected_at,
+        broken_links=[],
+        verification_timestamp=datetime.now(timezone.utc),
+        summary=summary,
     )
 
 
@@ -214,40 +192,13 @@ async def verify_all_chains(
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Re-verify every block in the global ledger.
-
-    Returns a summary with counts of valid and invalid blocks and a list of
-    any block indices where tampering was detected.
-    """
-    result = await db.execute(
-        select(BlockchainEntry).order_by(BlockchainEntry.block_index.asc())
-    )
-    entries: list[BlockchainEntry] = list(result.scalars().all())
-
-    blockchain_svc = BlockchainService(db)
-    valid_count = 0
-    invalid_count = 0
-    tampered_blocks: list[int] = []
-
-    for entry in entries:
-        if await blockchain_svc.verify_block(entry):
-            valid_count += 1
-        else:
-            invalid_count += 1
-            tampered_blocks.append(entry.block_index)
-
-    is_valid = invalid_count == 0
-    logger.info(
-        "Global chain verification: total=%d valid=%d invalid=%d",
-        len(entries),
-        valid_count,
-        invalid_count,
-    )
-
+    """Re-verify every block in the global ledger."""
+    blockchain_svc = BlockchainService()
+    verify_res = await blockchain_svc.verify_chain(db)
     return {
-        "is_valid": is_valid,
-        "total_blocks": len(entries),
-        "valid_blocks": valid_count,
-        "invalid_blocks": invalid_count,
-        "tampered_block_indices": tampered_blocks,
+        "is_valid": verify_res.is_valid,
+        "total_blocks": verify_res.total_blocks,
+        "verified_blocks": verify_res.verified_blocks,
+        "tamper_detected_at": verify_res.tamper_detected_at,
+        "summary": "Ledger verified" if verify_res.is_valid else verify_res.error,
     }

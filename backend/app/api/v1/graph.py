@@ -48,23 +48,24 @@ _IOC_SHAPE = {
 def _case_node(case: Case) -> dict:
     return {
         "data": {
-            "id": f"case:{case.id}",
-            "label": case.email_subject or str(case.id)[:8],
+            "id": f"case:{case.case_id}",
+            "label": str(case.case_id),
             "type": "CASE",
             "severity": case.severity,
             "status": case.status,
-            "case_id": str(case.id),
+            "case_id": str(case.case_id),
         },
         "classes": f"case severity-{(case.severity or 'INFO').lower()}",
     }
 
 
 def _ioc_node(ioc: IOC) -> dict:
+    val = ioc.ioc_value or ""
     return {
         "data": {
             "id": f"ioc:{ioc.id}",
-            "label": ioc.value if len(ioc.value) <= 40 else ioc.value[:37] + "…",
-            "full_value": ioc.value,
+            "label": val if len(val) <= 40 else val[:37] + "…",
+            "full_value": val,
             "type": ioc.ioc_type,
             "severity": ioc.severity,
             "ioc_id": str(ioc.id),
@@ -82,8 +83,8 @@ def _ioc_node(ioc: IOC) -> dict:
 def _case_ioc_edge(case: Case, ioc: IOC) -> dict:
     return {
         "data": {
-            "id": f"edge:case:{case.id}:ioc:{ioc.id}",
-            "source": f"case:{case.id}",
+            "id": f"edge:case:{case.case_id}:ioc:{ioc.id}",
+            "source": f"case:{case.case_id}",
             "target": f"ioc:{ioc.id}",
             "relation": "CONTAINS",
         },
@@ -94,7 +95,7 @@ def _shared_ioc_edges(iocs: list[IOC]) -> list[dict]:
     """Create edges between IOC nodes that share identical values across different cases."""
     value_map: dict[str, list[IOC]] = {}
     for ioc in iocs:
-        value_map.setdefault(ioc.value, []).append(ioc)
+        value_map.setdefault(ioc.ioc_value, []).append(ioc)
 
     edges: list[dict] = []
     for value, group in value_map.items():
@@ -172,29 +173,22 @@ async def get_global_graph(
     response_model=dict,
 )
 async def get_case_graph(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Return a graph centred on *case_id*, including:
-
-    - The focal case node.
-    - All IOCs extracted from that case.
-    - Any **other** cases that share at least one IOC value with the focal case
-      (revealing related / campaign cases).
-    - Cross-case SHARED_IOC edges between matching IOC values.
-    """
+    """Return a graph centred on *case_id*."""
     # Load focal case
     focal_result = await db.execute(
         select(Case)
-        .where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+        .where(Case.case_id == case_id, Case.status != CaseStatus.DELETED)
         .options(selectinload(Case.iocs))
     )
     focal_case: Case | None = focal_result.scalar_one_or_none()
     if focal_case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case {case_id} not found")
 
-    focal_ioc_values = {ioc.value for ioc in (focal_case.iocs or [])}
+    focal_ioc_values = {ioc.ioc_value for ioc in (focal_case.iocs or [])}
 
     nodes: list[dict] = [_case_node(focal_case)]
     edges: list[dict] = []
@@ -208,13 +202,13 @@ async def get_case_graph(
     if focal_ioc_values:
         related_result = await db.execute(
             select(Case)
-            .where(Case.status != CaseStatus.DELETED, Case.id != case_id)
+            .where(Case.status != CaseStatus.DELETED, Case.case_id != case_id)
             .options(selectinload(Case.iocs))
         )
         related_cases: list[Case] = list(related_result.scalars().all())
 
         for rcase in related_cases:
-            rcase_values = {ioc.value for ioc in (rcase.iocs or [])}
+            rcase_values = {ioc.ioc_value for ioc in (rcase.iocs or [])}
             if not rcase_values.intersection(focal_ioc_values):
                 continue  # No shared IOCs — skip
 

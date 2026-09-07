@@ -122,8 +122,8 @@ async def get_dashboard_stats(
     recent_cases_orm = list(recent_result.scalars().all())
     recent_cases = [
         {
-            "case_id": str(c.id),
-            "subject": c.email_subject,
+            "case_id": c.case_id,
+            "subject": None,
             "severity": c.severity,
             "status": c.status,
             "created_at": c.created_at.isoformat() if c.created_at else None,

@@ -28,8 +28,7 @@ class IOCResponse(BaseModel):
     is_lookalike: bool
     lookalike_target: Optional[str]
     is_shortened_url: bool
-    redirect_target: Optional[str]
-    metadata_: Optional[Dict[str, Any]] = Field(None, alias="metadata")
+    metadata_: Optional[Dict[str, Any]] = Field(default_factory=dict, validation_alias="metadata_", serialization_alias="metadata")
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)

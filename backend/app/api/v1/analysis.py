@@ -8,7 +8,6 @@ import asyncio
 import json
 import logging
 from typing import Annotated, AsyncGenerator
-from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -31,16 +30,17 @@ router = APIRouter()
 _progress_queues: dict[str, asyncio.Queue] = {}
 
 
-async def _get_case_or_404(case_id: UUID, db: AsyncSession) -> Case:
+async def _get_case_or_404(case_id: str, db: AsyncSession) -> Case:
     result = await db.execute(
         select(Case)
-        .where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+        .where(Case.case_id == case_id, Case.status != CaseStatus.DELETED)
         .options(
-            selectinload(Case.headers),
+            selectinload(Case.email_headers),
             selectinload(Case.relay_hops),
             selectinload(Case.auth_results),
             selectinload(Case.analysis_results),
             selectinload(Case.iocs),
+            selectinload(Case.geo_intelligence),
         )
     )
     case = result.scalar_one_or_none()
@@ -51,19 +51,37 @@ async def _get_case_or_404(case_id: UUID, db: AsyncSession) -> Case:
 
 async def _run_analysis_background(case_id: str, raw_email_path: str) -> None:
     """Background coroutine: runs the full analysis pipeline and pushes SSE events."""
+    from app.core.database import AsyncSessionLocal  # local import to avoid circular deps
+
     queue: asyncio.Queue = _progress_queues.setdefault(case_id, asyncio.Queue())
-    pipeline = AnalysisPipeline(case_id=case_id, raw_email_path=raw_email_path)
 
     try:
-        async for event in pipeline.run():
-            # event is a dict: {stage, progress, message, data?}
-            await queue.put({"type": "progress", "payload": event})
+        # Read the raw email bytes from disk
+        import aiofiles
+        async with aiofiles.open(raw_email_path, "rb") as f:
+            raw_bytes = await f.read()
+
+        # Run pipeline with its own DB session
+        async with AsyncSessionLocal() as db:
+            pipeline = AnalysisPipeline()
+            async for sse_str in pipeline.run(
+                db=db,
+                case_id=case_id,
+                raw_bytes=raw_bytes,
+                analyst_id="system",
+            ):
+                # sse_str is already "data: {...}\n\n" — parse to dict for queue
+                try:
+                    payload = json.loads(sse_str.removeprefix("data: ").strip())
+                    await queue.put({"type": "progress", "payload": payload})
+                except Exception:
+                    pass
+
         await queue.put({"type": "complete", "payload": {"case_id": case_id}})
     except Exception as exc:
         logger.exception("Analysis pipeline error for case %s: %s", case_id, exc)
         await queue.put({"type": "error", "payload": {"case_id": case_id, "error": str(exc)}})
     finally:
-        # Leave sentinel so the SSE generator knows to stop
         await queue.put(None)
 
 
@@ -104,7 +122,7 @@ async def _sse_event_generator(case_id: str) -> AsyncGenerator[str, None]:
     summary="Trigger threat analysis for a case",
 )
 async def start_analysis(
-    case_id: UUID,
+    case_id: str,
     background_tasks: BackgroundTasks,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
@@ -124,24 +142,20 @@ async def start_analysis(
         )
 
     # Pre-create the queue so the SSE endpoint can connect immediately
-    case_id_str = str(case_id)
-    _progress_queues[case_id_str] = asyncio.Queue()
+    _progress_queues[case_id] = asyncio.Queue()
 
     # Mark as ANALYZING
     case.status = CaseStatus.ANALYZING
     await db.commit()
 
-    # Schedule pipeline in background
-    background_tasks.add_task(
-        asyncio.create_task,
-        _run_analysis_background(case_id_str, case.raw_email_path),
-    )
+    # Schedule pipeline in background (FastAPI handles the async execution)
+    background_tasks.add_task(_run_analysis_background, case_id, case.raw_email_path)
 
-    sse_url = f"/api/v1/cases/{case_id}/analysis/stream"
+    sse_url = f"/api/v1/analysis/{case_id}/analysis/stream"
     logger.info("Analysis started for case %s by %s", case_id, current_user.username)
     return {
         "message": "Analysis started",
-        "case_id": case_id_str,
+        "case_id": case_id,
         "sse_url": sse_url,
     }
 
@@ -152,7 +166,7 @@ async def start_analysis(
     response_class=StreamingResponse,
 )
 async def analysis_stream(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
 ) -> StreamingResponse:
     """Server-Sent Events stream that delivers live progress updates from the
@@ -162,10 +176,8 @@ async def analysis_stream(
     Events are JSON-encoded and carry a ``type`` field (``progress`` | ``complete``
     | ``error`` | ``done`` | ``connected``).
     """
-    case_id_str = str(case_id)
-
     return StreamingResponse(
-        _sse_event_generator(case_id_str),
+        _sse_event_generator(case_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -182,7 +194,7 @@ async def analysis_stream(
     summary="Retrieve completed analysis results",
 )
 async def get_analysis_results(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisResultResponse:
@@ -204,7 +216,8 @@ async def get_analysis_results(
             detail="No analysis results found for this case",
         )
 
-    return AnalysisResultResponse.model_validate(case.analysis_results)
+    first_result = case.analysis_results[0] if isinstance(case.analysis_results, list) else case.analysis_results
+    return AnalysisResultResponse.model_validate(first_result)
 
 
 @router.get(
@@ -213,7 +226,7 @@ async def get_analysis_results(
     summary="Retrieve parsed email header analysis",
 )
 async def get_headers(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> HeaderAnalysisResponse:
@@ -221,13 +234,13 @@ async def get_headers(
     SPF / DKIM / DMARC authentication results."""
     case = await _get_case_or_404(case_id, db)
 
-    if not case.headers:
+    if not case.email_headers:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Header data not yet available — run analysis first",
         )
 
-    return HeaderAnalysisResponse.model_validate(case.headers)
+    return HeaderAnalysisResponse.model_validate(case.email_headers[0] if isinstance(case.email_headers, list) else case.email_headers)
 
 
 @router.get(
@@ -236,7 +249,7 @@ async def get_headers(
     summary="Retrieve ordered email relay chain",
 )
 async def get_relay_path(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> list[RelayHopResponse]:

@@ -34,14 +34,10 @@ from typing import Any, AsyncGenerator, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.analysis import (
-    AnalysisResult,
-    AuthResult,
-    EmailHeader,
-    GeoIntelligence,
-    RelayHop,
-)
-from app.models.case import Case
+from app.models.case import Case, AnalysisResult, CaseStatus
+from app.models.email_data import EmailHeader, RelayHop, AuthResult
+from app.models.ioc import IOC
+from app.models.geo import GeoIntelligence
 from app.services.ai_threat_engine import AIThreatEngine, ThreatAnalysisResult
 from app.services.blockchain_ledger import BlockchainLedgerService
 from app.services.geo_intelligence import GeoIntelligenceService, IPIntelligenceResult
@@ -324,25 +320,20 @@ class AnalysisPipeline:
         case_id: str,
         relay_chain: list,
     ) -> None:
-        """
-        Persist each hop in the relay chain as a RelayHop record.
-
-        Expects each hop to expose at minimum:
-          hop_index, ip_address, hostname, timestamp, protocol,
-          delay_seconds, is_public, raw_header
-        """
+        """Persist each hop in the relay chain as a RelayHop record."""
         for hop in (relay_chain or []):
             record = RelayHop(
                 id=uuid.uuid4(),
                 case_id=case_id,
                 hop_index=getattr(hop, "hop_index", 0),
-                ip_address=getattr(hop, "ip_address", None),
-                hostname=getattr(hop, "hostname", None),
+                by_server=getattr(hop, "by_server", None) or "",
+                from_server=getattr(hop, "from_server", None) or "",
+                ip_address=getattr(hop, "ip_address", None) or "",
+                protocol=getattr(hop, "protocol", None) or "SMTP",
                 timestamp=getattr(hop, "timestamp", None),
-                protocol=getattr(hop, "protocol", None),
-                delay_seconds=getattr(hop, "delay_seconds", None),
-                is_public=getattr(hop, "is_public", True),
-                raw_header=getattr(hop, "raw_header", None),
+                is_public_ip=getattr(hop, "is_public_ip", True),
+                is_suspicious=getattr(hop, "is_suspicious", False),
+                raw_header=getattr(hop, "raw_header", None) or "",
             )
             db.add(record)
         await db.commit()
@@ -354,34 +345,41 @@ class AnalysisPipeline:
         parsed,
         header_result,
     ) -> None:
-        """
-        Persist the parsed email header metadata and detected anomalies
-        as a single EmailHeader record.
-        """
-        anomalies_data = []
-        for anomaly in (getattr(header_result, "anomalies", None) or []):
-            anomalies_data.append(
-                {
-                    "type": getattr(anomaly, "anomaly_type", ""),
-                    "description": getattr(anomaly, "description", ""),
-                    "severity": getattr(anomaly, "severity", "MEDIUM"),
-                }
-            )
+        """Persist the parsed email header metadata as an EmailHeader record."""
+        anomalies_data = [
+            {
+                "type": getattr(anomaly, "anomaly_type", ""),
+                "description": getattr(anomaly, "description", ""),
+                "severity": getattr(anomaly, "severity", "MEDIUM"),
+            }
+            for anomaly in (getattr(header_result, "anomalies", None) or [])
+        ]
+
+        reply_to_val = getattr(parsed, "reply_to", None)
+        if isinstance(reply_to_val, list):
+            reply_to_str = ", ".join(reply_to_val)
+        else:
+            reply_to_str = str(reply_to_val) if reply_to_val else None
 
         record = EmailHeader(
             id=uuid.uuid4(),
             case_id=case_id,
+            from_addr=getattr(parsed, "from_addr", None),
+            from_name=getattr(parsed, "from_name", None),
+            from_domain=getattr(parsed, "from_domain", None),
+            reply_to=reply_to_str,
+            reply_to_domain=None,
+            return_path=getattr(parsed, "return_path", None),
+            return_path_domain=None,
             message_id=getattr(parsed, "message_id", None),
             subject=getattr(parsed, "subject", None),
-            from_addr=getattr(parsed, "from_addr", None),
-            to_addr=getattr(parsed, "to_addr", None),
-            reply_to=getattr(parsed, "reply_to", None),
-            return_path=getattr(parsed, "return_path", None),
-            date_header=getattr(parsed, "date", None),
+            date_sent=getattr(parsed, "date", None),
             x_mailer=getattr(parsed, "x_mailer", None),
             x_originating_ip=getattr(parsed, "x_originating_ip", None),
-            anomalies=anomalies_data,
-            all_headers=getattr(parsed, "all_headers", {}),
+            content_type=getattr(parsed, "content_type", None),
+            raw_headers=getattr(parsed, "headers", {}) or {},
+            rfc_violations=getattr(parsed, "rfc_violations", []) or anomalies_data,
+            spoofing_indicators=getattr(header_result, "spoofing_indicators", []) or [],
         )
         db.add(record)
         await db.commit()
@@ -392,38 +390,27 @@ class AnalysisPipeline:
         case_id: str,
         auth_result,
     ) -> None:
-        """
-        Persist SPF / DKIM / DMARC / ARC authentication results as an
-        AuthResult record. Gracefully handles a None auth_result.
-        """
-        if auth_result is None:
-            record = AuthResult(
-                id=uuid.uuid4(),
-                case_id=case_id,
-                spf_result="none",
-                dkim_result="none",
-                dmarc_result="none",
-            )
-        else:
-            record = AuthResult(
-                id=uuid.uuid4(),
-                case_id=case_id,
-                spf_result=getattr(auth_result, "spf_result", "none"),
-                spf_domain=getattr(auth_result, "spf_domain", None),
-                spf_details=getattr(auth_result, "spf_details", {}),
-                dkim_result=getattr(auth_result, "dkim_result", "none"),
-                dkim_domain=getattr(auth_result, "dkim_domain", None),
-                dkim_selector=getattr(auth_result, "dkim_selector", None),
-                dkim_details=getattr(auth_result, "dkim_details", {}),
-                dmarc_result=getattr(auth_result, "dmarc_result", "none"),
-                dmarc_domain=getattr(auth_result, "dmarc_domain", None),
-                dmarc_policy=getattr(auth_result, "dmarc_policy", None),
-                dmarc_details=getattr(auth_result, "dmarc_details", {}),
-                arc_result=getattr(auth_result, "arc_result", None),
-                authentication_results_header=getattr(
-                    auth_result, "authentication_results_header", None
-                ),
-            )
+        """Persist SPF / DKIM / DMARC authentication results as an AuthResult record."""
+        spf_obj = getattr(auth_result, "spf", None)
+        dkim_obj = getattr(auth_result, "dkim", None)
+        dmarc_obj = getattr(auth_result, "dmarc", None)
+
+        record = AuthResult(
+            id=uuid.uuid4(),
+            case_id=case_id,
+            spf_result=getattr(spf_obj, "result", "none") if spf_obj else "none",
+            spf_domain=getattr(spf_obj, "domain", None) if spf_obj else None,
+            spf_explanation=getattr(spf_obj, "explanation", None) if spf_obj else None,
+            dkim_result="pass" if (dkim_obj and getattr(dkim_obj, "is_valid", False)) else (getattr(dkim_obj, "result", "fail") if dkim_obj else "none"),
+            dkim_domain=getattr(dkim_obj, "domain", None) if dkim_obj else None,
+            dkim_selector=getattr(dkim_obj, "selector", None) if dkim_obj else None,
+            dmarc_result=getattr(dmarc_obj, "result", "none") if dmarc_obj else "none",
+            dmarc_policy=getattr(dmarc_obj, "policy", None) if dmarc_obj else None,
+            dmarc_subdomain_policy=getattr(dmarc_obj, "subdomain_policy", None) if dmarc_obj else None,
+            overall_verdict=getattr(auth_result, "overall_verdict", "WARN") if auth_result else "WARN",
+            spoofing_risk=getattr(auth_result, "spoofing_risk", "UNKNOWN") if auth_result else "UNKNOWN",
+            raw_auth_header=None,
+        )
         db.add(record)
         await db.commit()
 
@@ -433,27 +420,21 @@ class AnalysisPipeline:
         case_id: str,
         iocs: list,
     ) -> None:
-        """
-        Persist all extracted IOC objects as app.models.ioc.IOC records.
-
-        Expects each IOC object to expose the standard IOC dataclass fields.
-        A single bulk-add is used for efficiency.
-        """
-        from app.models.ioc import IOC as IOCModel
-
+        """Persist all extracted IOC objects as app.models.ioc.IOC records."""
         for ioc in (iocs or []):
-            record = IOCModel(
+            record = IOC(
                 id=uuid.uuid4(),
                 case_id=case_id,
                 ioc_type=getattr(ioc, "ioc_type", "UNKNOWN"),
                 ioc_value=str(getattr(ioc, "ioc_value", "")),
-                severity=getattr(ioc, "severity", "MEDIUM"),
-                is_lookalike=getattr(ioc, "is_lookalike", False),
+                defanged_value=getattr(ioc, "defanged_value", str(getattr(ioc, "ioc_value", ""))),
+                severity=getattr(ioc, "severity", "LOW"),
+                context=str(getattr(ioc, "context", "") or ""),
+                is_lookalike=bool(getattr(ioc, "is_lookalike", False)),
                 lookalike_target=getattr(ioc, "lookalike_target", None),
-                is_shortened_url=getattr(ioc, "is_shortened_url", False),
-                is_malicious=getattr(ioc, "is_malicious", False),
-                confidence=getattr(ioc, "confidence", 0.5),
-                context=getattr(ioc, "context", {}),
+                is_shortened_url=bool(getattr(ioc, "is_shortened_url", False)),
+                redirect_target=None,
+                metadata_=getattr(ioc, "metadata", {}) or {},
             )
             db.add(record)
         await db.commit()
@@ -464,28 +445,24 @@ class AnalysisPipeline:
         case_id: str,
         threat_result: ThreatAnalysisResult,
     ) -> None:
-        """
-        Persist the final ThreatAnalysisResult from the AI engine as an
-        AnalysisResult record.
-        """
+        """Persist the final ThreatAnalysisResult as an AnalysisResult record."""
         record = AnalysisResult(
             id=uuid.uuid4(),
             case_id=case_id,
             threat_score=threat_result.threat_score,
             severity=threat_result.severity,
+            threat_categories=threat_result.threat_categories if isinstance(threat_result.threat_categories, (dict, list)) else [],
             rule_score=threat_result.rule_score,
-            ml_score=threat_result.ml_score,
+            ml_score=float(threat_result.ml_score) if threat_result.ml_score is not None else None,
             gemini_score=threat_result.gemini_score,
-            threat_categories=threat_result.threat_categories,
-            triggered_rules=threat_result.triggered_rules,
             ai_explanation=threat_result.ai_explanation,
-            urgency_indicators=threat_result.urgency_indicators,
-            impersonation_analysis=threat_result.impersonation_analysis,
-            social_engineering_patterns=threat_result.social_engineering_patterns,
-            bec_indicators=threat_result.bec_indicators,
-            shap_features=threat_result.shap_features,
-            recommended_actions=threat_result.recommended_actions,
-            confidence=threat_result.confidence,
+            urgency_phrases=threat_result.urgency_indicators if isinstance(threat_result.urgency_indicators, (dict, list)) else [],
+            impersonation_details=threat_result.impersonation_analysis if isinstance(threat_result.impersonation_analysis, dict) else {},
+            social_engineering_patterns=threat_result.social_engineering_patterns if isinstance(threat_result.social_engineering_patterns, (dict, list)) else [],
+            shap_features=threat_result.shap_features if isinstance(threat_result.shap_features, dict) else {},
+            recommended_actions=threat_result.recommended_actions if isinstance(threat_result.recommended_actions, (dict, list)) else [],
+            analyzed_at=datetime.now(timezone.utc),
+            analysis_duration_ms=None,
         )
         db.add(record)
         await db.commit()
@@ -497,15 +474,13 @@ class AnalysisPipeline:
         ip: str,
         geo_result: IPIntelligenceResult,
     ) -> None:
-        """
-        Persist the IP geolocation and infrastructure intelligence as a
-        GeoIntelligence record.
-        """
+        """Persist IP geolocation and infrastructure intelligence as a GeoIntelligence record."""
+        if not geo_result:
+            return
         record = GeoIntelligence(
             id=uuid.uuid4(),
             case_id=case_id,
             ip_address=ip,
-            is_private=geo_result.is_private,
             country=geo_result.country,
             country_code=geo_result.country_code,
             city=geo_result.city,
@@ -516,12 +491,13 @@ class AnalysisPipeline:
             org=geo_result.org,
             asn=geo_result.asn,
             hostname=geo_result.hostname,
+            is_vpn=bool(geo_result.is_vpn),
+            is_tor=bool(geo_result.is_tor),
+            is_hosting=bool(geo_result.is_hosting),
+            is_proxy=bool(geo_result.is_proxy),
             ptr_record=geo_result.ptr_record,
-            is_vpn=geo_result.is_vpn,
-            is_tor=geo_result.is_tor,
-            is_hosting=geo_result.is_hosting,
-            is_proxy=geo_result.is_proxy,
-            whois_data=geo_result.whois_data,
+            whois_data=geo_result.whois_data if isinstance(geo_result.whois_data, dict) else {},
+            dns_records={},
             enrichment_source=geo_result.enrichment_source,
         )
         db.add(record)
@@ -533,19 +509,14 @@ class AnalysisPipeline:
         case_id: str,
         threat_result: ThreatAnalysisResult,
     ) -> None:
-        """
-        Update the Case record with the final threat score, severity, status,
-        threat categories, and AI explanation.
-        """
+        """Update the Case record with the final threat score, severity, and COMPLETED status."""
         stmt = (
             update(Case)
             .where(Case.case_id == case_id)
             .values(
                 threat_score=threat_result.threat_score,
                 severity=threat_result.severity,
-                status="COMPLETE",
-                threat_categories=threat_result.threat_categories,
-                ai_explanation=threat_result.ai_explanation,
+                status=CaseStatus.COMPLETED,
                 updated_at=datetime.now(timezone.utc),
             )
         )
@@ -558,17 +529,13 @@ class AnalysisPipeline:
         case_id: str,
         error: str,
     ) -> None:
-        """
-        Mark the Case record as FAILED with the error message and record
-        the failure event in the blockchain ledger.
-        """
+        """Mark the Case record as FAILED and record in blockchain ledger."""
         try:
             stmt = (
                 update(Case)
                 .where(Case.case_id == case_id)
                 .values(
-                    status="FAILED",
-                    error_message=error[:1000],
+                    status=CaseStatus.FAILED,
                     updated_at=datetime.now(timezone.utc),
                 )
             )
@@ -580,8 +547,7 @@ class AnalysisPipeline:
                 case_id,
                 "ANALYSIS_FAILED",
                 "system",
-                {"case_id": case_id, "error": error[:500]},
+                {"case_id": case_id, "error": str(error)[:500]},
             )
         except Exception:
-            # Best-effort — do not raise so the caller's error event is sent.
             pass

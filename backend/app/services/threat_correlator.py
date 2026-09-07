@@ -271,8 +271,9 @@ class ThreatCorrelatorService:
             campaign = Campaign(
                 id=uuid.uuid4(),
                 campaign_id=campaign_id,
+                name=f"Campaign {campaign_id}",
                 case_count=len(related_case_ids) + 1,
-                shared_indicators=all_shared_iocs[:20],
+                shared_indicators={"iocs": all_shared_iocs[:20]},
                 first_seen=datetime.now(timezone.utc),
                 last_seen=datetime.now(timezone.utc),
             )
@@ -280,7 +281,6 @@ class ThreatCorrelatorService:
 
         # Link the current case to the campaign.
         current_link = CaseCampaign(
-            id=uuid.uuid4(),
             case_id=case_id,
             campaign_id=campaign_id,
             similarity_score=max(
@@ -297,7 +297,6 @@ class ThreatCorrelatorService:
         for rel_case_id in related_case_ids:
             if rel_case_id not in linked_case_ids:
                 link = CaseCampaign(
-                    id=uuid.uuid4(),
                     case_id=rel_case_id,
                     campaign_id=campaign_id,
                     similarity_score=related[rel_case_id]["similarity_score"],

@@ -94,23 +94,23 @@ export const casesAPI = {
 export const analysisAPI = {
   trigger: async (caseId: string): Promise<{ message: string; sse_url: string }> => {
     const res = await apiClient.post<{ message: string; sse_url: string }>(
-      `/cases/${caseId}/analyze`
+      `/analysis/${caseId}/analyze`
     )
     return res.data
   },
 
   get: async (caseId: string): Promise<AnalysisResult> => {
-    const res = await apiClient.get<AnalysisResult>(`/cases/${caseId}/analysis`)
+    const res = await apiClient.get<AnalysisResult>(`/analysis/${caseId}`)
     return res.data
   },
 
   getHeaders: async (caseId: string): Promise<EmailHeaders> => {
-    const res = await apiClient.get<EmailHeaders>(`/cases/${caseId}/headers`)
+    const res = await apiClient.get<EmailHeaders>(`/analysis/${caseId}/headers`)
     return res.data
   },
 
   getRelayPath: async (caseId: string): Promise<RelayHop[]> => {
-    const res = await apiClient.get<RelayHop[]>(`/cases/${caseId}/relay-path`)
+    const res = await apiClient.get<RelayHop[]>(`/analysis/${caseId}/relay-path`)
     return res.data
   },
 
@@ -125,7 +125,7 @@ export const analysisAPI = {
     onError: (err: Event) => void
   ): (() => void) => {
     const token = useAuthStore.getState().token
-    const url = `${BASE_URL}/cases/${caseId}/analysis/stream${token ? `?token=${token}` : ''}`
+    const url = `${BASE_URL}/analysis/${caseId}/analysis/stream${token ? `?token=${token}` : ''}`
     const eventSource = new EventSource(url)
 
     eventSource.onmessage = (e) => {
@@ -158,8 +158,8 @@ export const iocsAPI = {
   },
 
   getForCase: async (caseId: string): Promise<IOC[]> => {
-    const res = await apiClient.get<IOC[]>(`/cases/${caseId}/iocs`)
-    return res.data
+    const res = await apiClient.get<IOCListResponse>('/iocs', { params: { case_id: caseId, per_page: 200 } })
+    return res.data.iocs ?? []
   },
 
   search: async (q: string): Promise<IOC[]> => {
@@ -179,7 +179,7 @@ export const iocsAPI = {
 // ── Blockchain API ───────────────────────────────────────────
 export const blockchainAPI = {
   getForCase: async (caseId: string): Promise<BlockchainEntry[]> => {
-    const res = await apiClient.get<BlockchainEntry[]>(`/cases/${caseId}/blockchain`)
+    const res = await apiClient.get<BlockchainEntry[]>(`/blockchain/cases/${caseId}/blockchain`)
     return res.data
   },
 
@@ -192,7 +192,7 @@ export const blockchainAPI = {
 
   verify: async (caseId: string): Promise<BlockchainVerifyResult> => {
     const res = await apiClient.post<BlockchainVerifyResult>(
-      `/cases/${caseId}/blockchain/verify`
+      `/blockchain/cases/${caseId}/blockchain/verify`
     )
     return res.data
   },
@@ -207,7 +207,7 @@ export const blockchainAPI = {
 export const reportsAPI = {
   downloadPDF: async (caseId: string): Promise<void> => {
     const token = useAuthStore.getState().token
-    const response = await fetch(`${BASE_URL}/cases/${caseId}/report`, {
+    const response = await fetch(`${BASE_URL}/reports/${caseId}/report`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!response.ok) throw new Error('Failed to generate report')
@@ -223,15 +223,18 @@ export const reportsAPI = {
   },
 
   getPreviewURL: (caseId: string): string => {
-    return `${BASE_URL}/cases/${caseId}/report/preview`
+    return `${BASE_URL}/reports/${caseId}/report/preview`
   },
 }
 
 // ── Geo API ──────────────────────────────────────────────────
 export const geoAPI = {
   getForCase: async (caseId: string): Promise<GeoIntelligence[]> => {
-    const res = await apiClient.get<GeoIntelligence[]>(`/cases/${caseId}/geo`)
-    return res.data
+    // Geo data comes back as part of the full case detail — no separate endpoint
+    const res = await apiClient.get<{ geo_intelligence: GeoIntelligence[] }>(
+      `/analysis/${caseId}/analysis`
+    )
+    return res.data?.geo_intelligence ?? []
   },
 }
 

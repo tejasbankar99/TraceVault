@@ -63,8 +63,13 @@ class CasePagination(BaseModel):
 class CaseListResponse(BaseModel):
     """Paginated list of cases."""
 
-    items: List[CaseResponse]
-    pagination: CasePagination
+    model_config = ConfigDict(from_attributes=True)
+
+    cases: List[CaseResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
 
 
 class CaseDetailResponse(BaseModel):

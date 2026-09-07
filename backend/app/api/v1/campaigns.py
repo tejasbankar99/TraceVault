@@ -37,16 +37,10 @@ async def list_campaigns(
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> list[CampaignResponse]:
-    """Return every detected campaign with an associated case count and summary
-    statistics.
-
-    Campaigns are automatically detected by the analysis pipeline when multiple
-    cases share a significant cluster of IOC values, infrastructure, or payload
-    characteristics.
-    """
+    """Return every detected campaign with an associated case count and summary statistics."""
     result = await db.execute(
         select(Campaign)
-        .options(selectinload(Campaign.cases))
+        .options(selectinload(Campaign.case_campaigns))
         .order_by(Campaign.first_seen.desc())
     )
     campaigns: list[Campaign] = list(result.scalars().all())
@@ -59,23 +53,16 @@ async def list_campaigns(
     summary="Retrieve full campaign details",
 )
 async def get_campaign(
-    campaign_id: UUID,
+    campaign_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> CampaignDetailResponse:
-    """Return detailed information about a specific campaign, including:
-
-    - All associated case IDs and their metadata.
-    - The shared IOCs that triggered the campaign link.
-    - Timeline of first/last observed activity.
-    - Threat actor attribution notes (if available).
-    """
+    """Return detailed information about a specific campaign."""
     result = await db.execute(
         select(Campaign)
-        .where(Campaign.id == campaign_id)
+        .where(Campaign.campaign_id == campaign_id)
         .options(
-            selectinload(Campaign.cases),
-            selectinload(Campaign.shared_iocs),
+            selectinload(Campaign.case_campaigns),
         )
     )
     campaign: Campaign | None = result.scalar_one_or_none()
