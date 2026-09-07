@@ -49,12 +49,18 @@ export interface Case {
   campaign?: Campaign
 }
 
-export interface CaseListResponse {
-  cases: Case[]
+export interface CasePagination {
   total: number
   page: number
-  per_page: number
+  page_size: number
   total_pages: number
+  has_next: boolean
+  has_prev: boolean
+}
+
+export interface CaseListResponse {
+  items: Case[]
+  pagination: CasePagination
 }
 
 // ── Email Headers ────────────────────────────────────────────

@@ -39,6 +39,7 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     autocommit=False,
     expire_on_commit=False,
 )
+async_session_maker = AsyncSessionLocal
 
 Base = declarative_base()
 

@@ -42,7 +42,7 @@ export default function CasesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Investigations</h1>
           <p className="text-muted-foreground text-sm">
-            {data?.total ?? 0} total cases
+            {data?.pagination.total ?? 0} total cases
           </p>
         </div>
         <button
@@ -115,7 +115,7 @@ export default function CasesPage() {
             <AlertTriangle className="w-5 h-5" />
             <span className="text-sm">Failed to load cases</span>
           </div>
-        ) : data?.cases.length === 0 ? (
+        ) : data?.items.length === 0 ? (
           <div className="text-center py-16">
             <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-foreground font-medium">No investigations found</p>
@@ -143,7 +143,7 @@ export default function CasesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {data?.cases.map((c: Case) => (
+              {data?.items.map((c: Case) => (
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/cases/${c.case_id}`)}
@@ -216,10 +216,10 @@ export default function CasesPage() {
       </div>
 
       {/* Pagination */}
-      {data && data.total_pages > 1 && (
+      {data && data.pagination.total_pages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {data.page} of {data.total_pages}
+            Page {data.pagination.page} of {data.pagination.total_pages}
           </p>
           <div className="flex gap-2">
             <button
@@ -230,7 +230,7 @@ export default function CasesPage() {
               <ChevronLeft className="w-4 h-4" /> Prev
             </button>
             <button
-              disabled={(params.page ?? 1) >= data.total_pages}
+              disabled={(params.page ?? 1) >= data.pagination.total_pages}
               onClick={() => setParams(p => ({ ...p, page: (p.page ?? 1) + 1 }))}
               className="px-3 py-1.5 rounded-lg bg-secondary border border-border text-sm text-foreground disabled:opacity-40 flex items-center gap-1"
             >

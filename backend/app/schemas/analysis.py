@@ -53,9 +53,9 @@ class HeaderAnalysisResponse(BaseModel):
     x_originating_ip: Optional[str]
     x_mailer: Optional[str]
     content_type: Optional[str]
-    raw_headers: Optional[Dict[str, Any]]
-    rfc_violations: Optional[List[str]]
-    spoofing_indicators: Optional[List[str]]
+    raw_headers: Optional[Dict[str, Any]] = None
+    rfc_violations: Optional[List[Any]] = []
+    spoofing_indicators: Optional[List[Any]] = []
 
 
 class RelayHopResponse(BaseModel):

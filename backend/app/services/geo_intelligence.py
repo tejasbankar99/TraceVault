@@ -25,7 +25,10 @@ from typing import Optional
 import dns.resolver
 import dns.reversename
 import httpx
-import whois
+try:
+    import whois
+except ImportError:
+    whois = None
 from ipwhois import IPWhois
 
 
@@ -146,35 +149,36 @@ class GeoIntelligenceService:
         result = DomainIntelligenceResult(domain=domain)
 
         # WHOIS
-        try:
-            loop = asyncio.get_event_loop()
-            w = await loop.run_in_executor(None, whois.whois, domain)
-            result.registrar = str(w.registrar) if w.registrar else None
+        if whois is not None:
+            try:
+                loop = asyncio.get_event_loop()
+                w = await loop.run_in_executor(None, whois.whois, domain)
+                result.registrar = str(w.registrar) if w.registrar else None
 
-            raw_creation = w.creation_date
-            result.creation_date = (
-                raw_creation[0] if isinstance(raw_creation, list) else raw_creation
-            )
+                raw_creation = w.creation_date
+                result.creation_date = (
+                    raw_creation[0] if isinstance(raw_creation, list) else raw_creation
+                )
 
-            raw_expiry = w.expiration_date
-            result.expiration_date = (
-                raw_expiry[0] if isinstance(raw_expiry, list) else raw_expiry
-            )
+                raw_expiry = w.expiration_date
+                result.expiration_date = (
+                    raw_expiry[0] if isinstance(raw_expiry, list) else raw_expiry
+                )
 
-            result.registrant_country = getattr(w, "country", None)
+                result.registrant_country = getattr(w, "country", None)
 
-            # Flag recently-registered domains (< 30 days) as suspicious.
-            if result.creation_date:
-                from datetime import datetime, timezone
+                # Flag recently-registered domains (< 30 days) as suspicious.
+                if result.creation_date:
+                    from datetime import datetime, timezone
 
-                creation = result.creation_date
-                if creation.tzinfo is None:
-                    creation = creation.replace(tzinfo=timezone.utc)
-                age_days = (datetime.now(timezone.utc) - creation).days
-                result.domain_age_days = age_days
-                result.is_newly_registered = age_days < 30
-        except Exception:
-            pass
+                    creation = result.creation_date
+                    if creation.tzinfo is None:
+                        creation = creation.replace(tzinfo=timezone.utc)
+                    age_days = (datetime.now(timezone.utc) - creation).days
+                    result.domain_age_days = age_days
+                    result.is_newly_registered = age_days < 30
+            except Exception:
+                pass
 
         # DNS records — A, MX, NS, TXT
         result.dns_records = {}

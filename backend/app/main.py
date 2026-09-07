@@ -99,6 +99,7 @@ def _register_routers() -> None:
 
     try:
         from app.api.v1 import analysis  # noqa: F401
+        app.include_router(analysis.router, prefix="/api/v1/cases", tags=["Analysis"])
         app.include_router(analysis.router, prefix="/api/v1/analysis", tags=["Analysis"])
     except ImportError as e:
         logger.warning("analysis router not available: %s", e)

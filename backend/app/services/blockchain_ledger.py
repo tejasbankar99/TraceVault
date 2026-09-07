@@ -18,7 +18,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +68,30 @@ class BlockchainLedgerService:
         block  = await ledger.add_event(db, case_id, "ANALYSIS_STARTED", analyst_id, {...})
         report = await ledger.verify_chain(db)
     """
+
+    def __init__(self, db: AsyncSession | None = None) -> None:
+        self.db = db
+
+    async def log_event(
+        self,
+        case_id: Any,
+        action: str,
+        actor_id: Any = None,
+        actor_username: str = "system",
+        metadata: dict | None = None,
+        db: AsyncSession | None = None,
+    ) -> BlockchainLedger:
+        """Alias for compatibility with route callers."""
+        session = db or self.db
+        if not session:
+            raise ValueError("Database session required for log_event")
+        return await self.add_event(
+            db=session,
+            case_id=str(case_id) if case_id else None,
+            action=action,
+            actor=actor_username or str(actor_id) or "system",
+            data=metadata or {},
+        )
 
     # ------------------------------------------------------------------
     # Public API

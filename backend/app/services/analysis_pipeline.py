@@ -31,17 +31,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.analysis import (
-    AnalysisResult,
-    AuthResult,
-    EmailHeader,
-    GeoIntelligence,
-    RelayHop,
-)
-from app.models.case import Case
+from app.models.case import Case, AnalysisResult
+from app.models.email_data import EmailHeader, RelayHop, AuthResult
+from app.models.geo import GeoIntelligence
+from app.models.ioc import IOC
 from app.services.ai_threat_engine import AIThreatEngine, ThreatAnalysisResult
 from app.services.blockchain_ledger import BlockchainLedgerService
 from app.services.geo_intelligence import GeoIntelligenceService, IPIntelligenceResult
@@ -179,6 +175,16 @@ class AnalysisPipeline:
 
         try:
             yield sse_event("start", 0, "Analysis pipeline started")
+
+            # Clean up any partial/prior records for this case before starting
+            await db.execute(delete(RelayHop).where(RelayHop.case_id == case_id))
+            await db.execute(delete(EmailHeader).where(EmailHeader.case_id == case_id))
+            await db.execute(delete(AuthResult).where(AuthResult.case_id == case_id))
+            await db.execute(delete(IOC).where(IOC.case_id == case_id))
+            await db.execute(delete(AnalysisResult).where(AnalysisResult.case_id == case_id))
+            await db.execute(delete(GeoIntelligence).where(GeoIntelligence.case_id == case_id))
+            await db.commit()
+
             await self.blockchain.add_event(
                 db,
                 case_id,
@@ -324,25 +330,20 @@ class AnalysisPipeline:
         case_id: str,
         relay_chain: list,
     ) -> None:
-        """
-        Persist each hop in the relay chain as a RelayHop record.
-
-        Expects each hop to expose at minimum:
-          hop_index, ip_address, hostname, timestamp, protocol,
-          delay_seconds, is_public, raw_header
-        """
+        """Persist each hop in the relay chain as a RelayHop record."""
         for hop in (relay_chain or []):
             record = RelayHop(
                 id=uuid.uuid4(),
                 case_id=case_id,
                 hop_index=getattr(hop, "hop_index", 0),
+                by_server=getattr(hop, "by_server", None) or getattr(hop, "by", None),
+                from_server=getattr(hop, "from_server", None) or getattr(hop, "from", None),
                 ip_address=getattr(hop, "ip_address", None),
-                hostname=getattr(hop, "hostname", None),
+                protocol=str(getattr(hop, "protocol", "") or getattr(hop, "with", ""))[:20] or None,
                 timestamp=getattr(hop, "timestamp", None),
-                protocol=getattr(hop, "protocol", None),
-                delay_seconds=getattr(hop, "delay_seconds", None),
-                is_public=getattr(hop, "is_public", True),
-                raw_header=getattr(hop, "raw_header", None),
+                is_public_ip=getattr(hop, "is_public_ip", getattr(hop, "is_public", True)),
+                is_suspicious=getattr(hop, "is_suspicious", False),
+                raw_header=str(getattr(hop, "raw_header", "")) if getattr(hop, "raw_header", None) else None,
             )
             db.add(record)
         await db.commit()
@@ -354,10 +355,7 @@ class AnalysisPipeline:
         parsed,
         header_result,
     ) -> None:
-        """
-        Persist the parsed email header metadata and detected anomalies
-        as a single EmailHeader record.
-        """
+        """Persist parsed email header fields as an EmailHeader record."""
         anomalies_data = []
         for anomaly in (getattr(header_result, "anomalies", None) or []):
             anomalies_data.append(
@@ -368,20 +366,32 @@ class AnalysisPipeline:
                 }
             )
 
+        def _to_str(val):
+            if val is None:
+                return None
+            if isinstance(val, (list, tuple)):
+                return ", ".join(str(v) for v in val if v) if val else None
+            return str(val)
+
         record = EmailHeader(
             id=uuid.uuid4(),
             case_id=case_id,
-            message_id=getattr(parsed, "message_id", None),
-            subject=getattr(parsed, "subject", None),
-            from_addr=getattr(parsed, "from_addr", None),
-            to_addr=getattr(parsed, "to_addr", None),
-            reply_to=getattr(parsed, "reply_to", None),
-            return_path=getattr(parsed, "return_path", None),
-            date_header=getattr(parsed, "date", None),
-            x_mailer=getattr(parsed, "x_mailer", None),
-            x_originating_ip=getattr(parsed, "x_originating_ip", None),
-            anomalies=anomalies_data,
-            all_headers=getattr(parsed, "all_headers", {}),
+            from_addr=_to_str(getattr(parsed, "from_addr", None)),
+            from_name=_to_str(getattr(parsed, "from_name", None)),
+            from_domain=_to_str(getattr(parsed, "from_domain", None)),
+            reply_to=_to_str(getattr(parsed, "reply_to", None)),
+            reply_to_domain=_to_str(getattr(parsed, "reply_to_domain", None)),
+            return_path=_to_str(getattr(parsed, "return_path", None)),
+            return_path_domain=_to_str(getattr(parsed, "return_path_domain", None)),
+            message_id=_to_str(getattr(parsed, "message_id", None)),
+            subject=_to_str(getattr(parsed, "subject", None)),
+            date_sent=getattr(parsed, "date", None),
+            x_mailer=_to_str(getattr(parsed, "x_mailer", None)),
+            x_originating_ip=_to_str(getattr(parsed, "x_originating_ip", None)),
+            content_type=_to_str(getattr(parsed, "content_type", None)),
+            raw_headers=getattr(parsed, "all_headers", getattr(parsed, "headers", {})),
+            rfc_violations=getattr(header_result, "rfc_violations", []),
+            spoofing_indicators=anomalies_data,
         )
         db.add(record)
         await db.commit()
@@ -392,10 +402,7 @@ class AnalysisPipeline:
         case_id: str,
         auth_result,
     ) -> None:
-        """
-        Persist SPF / DKIM / DMARC / ARC authentication results as an
-        AuthResult record. Gracefully handles a None auth_result.
-        """
+        """Persist SPF / DKIM / DMARC authentication results as an AuthResult record."""
         if auth_result is None:
             record = AuthResult(
                 id=uuid.uuid4(),
@@ -410,18 +417,17 @@ class AnalysisPipeline:
                 case_id=case_id,
                 spf_result=getattr(auth_result, "spf_result", "none"),
                 spf_domain=getattr(auth_result, "spf_domain", None),
-                spf_details=getattr(auth_result, "spf_details", {}),
+                spf_explanation=getattr(auth_result, "spf_explanation", None),
                 dkim_result=getattr(auth_result, "dkim_result", "none"),
                 dkim_domain=getattr(auth_result, "dkim_domain", None),
                 dkim_selector=getattr(auth_result, "dkim_selector", None),
-                dkim_details=getattr(auth_result, "dkim_details", {}),
                 dmarc_result=getattr(auth_result, "dmarc_result", "none"),
-                dmarc_domain=getattr(auth_result, "dmarc_domain", None),
                 dmarc_policy=getattr(auth_result, "dmarc_policy", None),
-                dmarc_details=getattr(auth_result, "dmarc_details", {}),
-                arc_result=getattr(auth_result, "arc_result", None),
-                authentication_results_header=getattr(
-                    auth_result, "authentication_results_header", None
+                dmarc_subdomain_policy=getattr(auth_result, "dmarc_subdomain_policy", None),
+                overall_verdict=getattr(auth_result, "overall_verdict", None),
+                spoofing_risk=getattr(auth_result, "spoofing_risk", None),
+                raw_auth_header=getattr(
+                    auth_result, "raw_auth_header", getattr(auth_result, "authentication_results_header", None)
                 ),
             )
         db.add(record)
@@ -433,27 +439,21 @@ class AnalysisPipeline:
         case_id: str,
         iocs: list,
     ) -> None:
-        """
-        Persist all extracted IOC objects as app.models.ioc.IOC records.
-
-        Expects each IOC object to expose the standard IOC dataclass fields.
-        A single bulk-add is used for efficiency.
-        """
-        from app.models.ioc import IOC as IOCModel
-
+        """Persist all extracted IOC objects as app.models.ioc.IOC records."""
         for ioc in (iocs or []):
-            record = IOCModel(
+            record = IOC(
                 id=uuid.uuid4(),
                 case_id=case_id,
                 ioc_type=getattr(ioc, "ioc_type", "UNKNOWN"),
                 ioc_value=str(getattr(ioc, "ioc_value", "")),
+                defanged_value=getattr(ioc, "defanged_value", None),
                 severity=getattr(ioc, "severity", "MEDIUM"),
+                context=str(getattr(ioc, "context", "")) if getattr(ioc, "context", None) else None,
                 is_lookalike=getattr(ioc, "is_lookalike", False),
                 lookalike_target=getattr(ioc, "lookalike_target", None),
                 is_shortened_url=getattr(ioc, "is_shortened_url", False),
-                is_malicious=getattr(ioc, "is_malicious", False),
-                confidence=getattr(ioc, "confidence", 0.5),
-                context=getattr(ioc, "context", {}),
+                redirect_target=getattr(ioc, "redirect_target", None),
+                metadata_=getattr(ioc, "metadata", getattr(ioc, "context", {}) if isinstance(getattr(ioc, "context", None), dict) else {}),
             )
             db.add(record)
         await db.commit()
@@ -464,28 +464,24 @@ class AnalysisPipeline:
         case_id: str,
         threat_result: ThreatAnalysisResult,
     ) -> None:
-        """
-        Persist the final ThreatAnalysisResult from the AI engine as an
-        AnalysisResult record.
-        """
+        """Persist the final ThreatAnalysisResult as an AnalysisResult record."""
         record = AnalysisResult(
             id=uuid.uuid4(),
             case_id=case_id,
             threat_score=threat_result.threat_score,
             severity=threat_result.severity,
-            rule_score=threat_result.rule_score,
-            ml_score=threat_result.ml_score,
-            gemini_score=threat_result.gemini_score,
             threat_categories=threat_result.threat_categories,
-            triggered_rules=threat_result.triggered_rules,
+            rule_score=threat_result.rule_score,
+            ml_score=float(threat_result.ml_score) if threat_result.ml_score is not None else 0.0,
+            gemini_score=threat_result.gemini_score,
             ai_explanation=threat_result.ai_explanation,
-            urgency_indicators=threat_result.urgency_indicators,
-            impersonation_analysis=threat_result.impersonation_analysis,
+            urgency_phrases=getattr(threat_result, "urgency_indicators", None) or getattr(threat_result, "urgency_phrases", None),
+            impersonation_details=getattr(threat_result, "impersonation_analysis", None) or getattr(threat_result, "impersonation_details", None),
             social_engineering_patterns=threat_result.social_engineering_patterns,
-            bec_indicators=threat_result.bec_indicators,
             shap_features=threat_result.shap_features,
             recommended_actions=threat_result.recommended_actions,
-            confidence=threat_result.confidence,
+            analyzed_at=datetime.now(timezone.utc),
+            analysis_duration_ms=getattr(threat_result, "analysis_duration_ms", None),
         )
         db.add(record)
         await db.commit()
@@ -497,17 +493,13 @@ class AnalysisPipeline:
         ip: str,
         geo_result: IPIntelligenceResult,
     ) -> None:
-        """
-        Persist the IP geolocation and infrastructure intelligence as a
-        GeoIntelligence record.
-        """
+        """Persist the IP geolocation and infrastructure intelligence as a GeoIntelligence record."""
         record = GeoIntelligence(
             id=uuid.uuid4(),
             case_id=case_id,
             ip_address=ip,
-            is_private=geo_result.is_private,
             country=geo_result.country,
-            country_code=geo_result.country_code,
+            country_code=geo_result.country_code[:2] if geo_result.country_code else None,
             city=geo_result.city,
             region=geo_result.region,
             latitude=geo_result.latitude,
@@ -516,12 +508,13 @@ class AnalysisPipeline:
             org=geo_result.org,
             asn=geo_result.asn,
             hostname=geo_result.hostname,
-            ptr_record=geo_result.ptr_record,
             is_vpn=geo_result.is_vpn,
             is_tor=geo_result.is_tor,
             is_hosting=geo_result.is_hosting,
             is_proxy=geo_result.is_proxy,
+            ptr_record=geo_result.ptr_record,
             whois_data=geo_result.whois_data,
+            dns_records=getattr(geo_result, "dns_records", {}),
             enrichment_source=geo_result.enrichment_source,
         )
         db.add(record)
@@ -534,8 +527,7 @@ class AnalysisPipeline:
         threat_result: ThreatAnalysisResult,
     ) -> None:
         """
-        Update the Case record with the final threat score, severity, status,
-        threat categories, and AI explanation.
+        Update the Case record with the final threat score, severity, status.
         """
         stmt = (
             update(Case)
@@ -543,9 +535,7 @@ class AnalysisPipeline:
             .values(
                 threat_score=threat_result.threat_score,
                 severity=threat_result.severity,
-                status="COMPLETE",
-                threat_categories=threat_result.threat_categories,
-                ai_explanation=threat_result.ai_explanation,
+                status="COMPLETED",
                 updated_at=datetime.now(timezone.utc),
             )
         )
@@ -559,8 +549,7 @@ class AnalysisPipeline:
         error: str,
     ) -> None:
         """
-        Mark the Case record as FAILED with the error message and record
-        the failure event in the blockchain ledger.
+        Mark the Case record as FAILED and record the failure event in the blockchain ledger.
         """
         try:
             stmt = (
@@ -568,7 +557,6 @@ class AnalysisPipeline:
                 .where(Case.case_id == case_id)
                 .values(
                     status="FAILED",
-                    error_message=error[:1000],
                     updated_at=datetime.now(timezone.utc),
                 )
             )
@@ -583,5 +571,4 @@ class AnalysisPipeline:
                 {"case_id": case_id, "error": error[:500]},
             )
         except Exception:
-            # Best-effort — do not raise so the caller's error event is sent.
             pass

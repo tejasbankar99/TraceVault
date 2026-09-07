@@ -75,6 +75,17 @@ class EvidencePreservationService:
     # Public API
     # ------------------------------------------------------------------
 
+    async def preserve(
+        self,
+        raw_bytes: bytes,
+        filename: str = "original.eml",
+        sha256: str = "",
+        created_by_id: str = "",
+    ) -> str:
+        """Alias for compatibility with cases upload route."""
+        record = await self.preserve_email(raw_bytes=raw_bytes, created_by_id=created_by_id)
+        return record.file_path
+
     async def preserve_email(
         self,
         raw_bytes: bytes,

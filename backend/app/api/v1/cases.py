@@ -31,6 +31,7 @@ from app.models.case import Case, CaseStatus
 from app.schemas.case import (
     CaseDetailResponse,
     CaseListResponse,
+    CasePagination,
     CaseResponse,
 )
 from app.services.blockchain_service import BlockchainService
@@ -51,19 +52,25 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-async def _get_case_or_404(case_id: UUID, db: AsyncSession) -> Case:
+async def _get_case_or_404(case_id: str, db: AsyncSession) -> Case:
+    try:
+        val = UUID(case_id)
+        cond = or_(Case.id == val, Case.case_id == str(case_id))
+    except (ValueError, AttributeError):
+        cond = (Case.case_id == str(case_id))
+
     result = await db.execute(
         select(Case)
-        .where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+        .where(cond, Case.status != CaseStatus.DELETED)
         .options(
-            selectinload(Case.headers),
+            selectinload(Case.email_headers),
             selectinload(Case.relay_hops),
             selectinload(Case.auth_results),
             selectinload(Case.analysis_results),
             selectinload(Case.iocs),
-            selectinload(Case.geo_data),
-            selectinload(Case.campaign),
-            selectinload(Case.blockchain_entries),
+            selectinload(Case.geo_intelligence),
+            selectinload(Case.case_campaigns),
+            selectinload(Case.blockchain_ledger),
         )
     )
     case = result.scalar_one_or_none()
@@ -137,23 +144,20 @@ async def upload_case(
 
     # ── Preserve evidence ────────────────────────────────────────
     evidence_svc = EvidencePreservationService()
-    evidence_path = await evidence_svc.preserve(
+    record = await evidence_svc.preserve_email(
         raw_bytes=raw_bytes,
-        filename=original_filename,
-        sha256=evidence_hash,
+        created_by_id=str(current_user.id),
     )
 
     # ── Create Case record ───────────────────────────────────────
     case = Case(
-        submitted_by=current_user.id,
-        original_filename=original_filename,
-        raw_email_path=evidence_path,
-        evidence_hash=evidence_hash,
-        evidence_size_bytes=len(raw_bytes),
-        status=CaseStatus.PENDING,
-        description=description,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        case_id=record.case_id,
+        status="PENDING",
+        evidence_hash=record.sha256,
+        evidence_hash3=record.sha3_256,
+        raw_email_path=record.file_path,
+        file_size_bytes=record.file_size_bytes,
+        created_by=current_user.id,
     )
     db.add(case)
     await db.flush()  # populate case.id before blockchain log
@@ -161,20 +165,21 @@ async def upload_case(
     # ── Blockchain ledger entry ──────────────────────────────────
     blockchain_svc = BlockchainService(db)
     await blockchain_svc.log_event(
-        case_id=case.id,
+        case_id=case.case_id,
         action="EVIDENCE_SUBMITTED",
         actor_id=current_user.id,
         actor_username=current_user.username,
         metadata={
             "filename": original_filename,
-            "sha256": evidence_hash,
+            "sha256": record.sha256,
+            "sha3_256": record.sha3_256,
             "size_bytes": len(raw_bytes),
         },
     )
 
     await db.commit()
     await db.refresh(case)
-    logger.info("Case created: %s by user %s", case.id, current_user.username)
+    logger.info("Case created: %s (%s) by user %s", case.case_id, case.id, current_user.username)
     return CaseResponse.model_validate(case)
 
 
@@ -229,12 +234,17 @@ async def list_cases(
     )
     cases = result.scalars().all()
 
+    total_pages = (total + per_page - 1) // per_page
     return CaseListResponse(
-        total=total,
-        page=page,
-        per_page=per_page,
-        pages=(total + per_page - 1) // per_page,
-        cases=[CaseResponse.model_validate(c) for c in cases],
+        items=[CaseResponse.model_validate(c) for c in cases],
+        pagination=CasePagination(
+            total=total,
+            page=page,
+            page_size=per_page,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_prev=page > 1,
+        ),
     )
 
 
@@ -244,7 +254,7 @@ async def list_cases(
     summary="Retrieve full case details",
 )
 async def get_case(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ) -> CaseDetailResponse:
@@ -259,11 +269,11 @@ async def get_case(
     # ── Log access event ─────────────────────────────────────────
     blockchain_svc = BlockchainService(db)
     await blockchain_svc.log_event(
-        case_id=case.id,
+        case_id=case.case_id,
         action="ANALYST_ACCESSED",
         actor_id=current_user.id,
         actor_username=current_user.username,
-        metadata={"case_id": str(case.id)},
+        metadata={"case_id": str(case.case_id)},
     )
     await db.commit()
 
@@ -276,7 +286,7 @@ async def get_case(
     status_code=status.HTTP_200_OK,
 )
 async def delete_case(
-    case_id: UUID,
+    case_id: str,
     current_user: Annotated[object, Depends(require_admin)],
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -287,10 +297,7 @@ async def delete_case(
 
     Requires **admin** role.
     """
-    result = await db.execute(select(Case).where(Case.id == case_id))
-    case: Case | None = result.scalar_one_or_none()
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case {case_id} not found")
+    case = await _get_case_or_404(case_id, db)
     if case.status == CaseStatus.DELETED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Case is already deleted")
 
@@ -300,11 +307,11 @@ async def delete_case(
     # ── Blockchain ledger entry ──────────────────────────────────
     blockchain_svc = BlockchainService(db)
     await blockchain_svc.log_event(
-        case_id=case.id,
+        case_id=case.case_id,
         action="CASE_DELETED",
         actor_id=current_user.id,
         actor_username=current_user.username,
-        metadata={"case_id": str(case.id), "deleted_by": current_user.username},
+        metadata={"case_id": str(case.case_id), "deleted_by": current_user.username},
     )
 
     await db.commit()

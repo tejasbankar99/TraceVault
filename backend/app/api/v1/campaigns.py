@@ -46,8 +46,8 @@ async def list_campaigns(
     """
     result = await db.execute(
         select(Campaign)
-        .options(selectinload(Campaign.cases))
-        .order_by(Campaign.first_seen.desc())
+        .options(selectinload(Campaign.case_campaigns))
+        .order_by(Campaign.first_seen.desc().nullslast())
     )
     campaigns: list[Campaign] = list(result.scalars().all())
     return [CampaignResponse.model_validate(c) for c in campaigns]
@@ -73,10 +73,7 @@ async def get_campaign(
     result = await db.execute(
         select(Campaign)
         .where(Campaign.id == campaign_id)
-        .options(
-            selectinload(Campaign.cases),
-            selectinload(Campaign.shared_iocs),
-        )
+        .options(selectinload(Campaign.case_campaigns))
     )
     campaign: Campaign | None = result.scalar_one_or_none()
     if campaign is None:
