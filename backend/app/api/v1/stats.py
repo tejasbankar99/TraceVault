@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.v1.auth import get_current_user
 from app.core.database import get_db
@@ -18,7 +19,7 @@ from app.models.blockchain import BlockchainEntry
 from app.models.campaign import Campaign
 from app.models.case import Case, CaseStatus
 from app.models.ioc import IOC
-from app.schemas.stats import DashboardStats, ThreatTrendPoint
+from app.schemas.stats import DashboardStats, RecentCaseSummary, ThreatTrendPoint
 from app.services.blockchain_service import BlockchainService
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ async def get_dashboard_stats(
         row[0] or "UNKNOWN": row[1] for row in severity_rows.all()
     }
     # Ensure all expected severity keys are present
-    for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"):
+    for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "BENIGN", "INFO"):
         cases_by_severity.setdefault(sev, 0)
 
     # ── Cases by status ──────────────────────────────────────────
@@ -111,25 +112,32 @@ async def get_dashboard_stats(
         except Exception:
             chain_integrity = True  # Assume valid if check fails
 
-
     # ── Recent cases (last 5) ────────────────────────────────────
     recent_result = await db.execute(
         select(Case)
         .where(active_filter)
+        .options(selectinload(Case.email_headers))
         .order_by(Case.created_at.desc())
         .limit(5)
     )
     recent_cases_orm = list(recent_result.scalars().all())
-    recent_cases = [
-        {
-            "case_id": str(c.id),
-            "subject": c.email_subject,
-            "severity": c.severity,
-            "status": c.status,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-        }
-        for c in recent_cases_orm
-    ]
+    recent_cases: list[RecentCaseSummary] = []
+    for c in recent_cases_orm:
+        subject = None
+        if c.email_headers:
+            for h in c.email_headers:
+                if h.subject:
+                    subject = h.subject
+                    break
+        recent_cases.append(
+            RecentCaseSummary(
+                case_id=c.case_id,
+                subject=subject,
+                severity=c.severity,
+                status=c.status,
+                created_at=c.created_at.isoformat() if c.created_at else None,
+            )
+        )
 
     # ── 30-day threat trend ──────────────────────────────────────
     now = datetime.now(timezone.utc)

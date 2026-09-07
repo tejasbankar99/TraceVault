@@ -76,12 +76,13 @@ export default function DashboardPage() {
     )
   }
 
-  const highThreats = (stats.cases_by_severity['CRITICAL'] ?? 0) +
-    (stats.cases_by_severity['HIGH'] ?? 0)
+  const casesBySeverity = stats.cases_by_severity || {}
+  const highThreats = (casesBySeverity['CRITICAL'] ?? 0) +
+    (casesBySeverity['HIGH'] ?? 0)
 
   const severityChartData = SEVERITY_ORDER.map(s => ({
     name: s,
-    count: stats.cases_by_severity[s] ?? 0,
+    count: casesBySeverity[s] ?? 0,
     fill: SEVERITY_COLORS[s],
   }))
 
@@ -186,7 +187,7 @@ export default function DashboardPage() {
         <div className="glass-card lg:col-span-2">
           <h2 className="text-sm font-semibold text-foreground mb-3">IOCs by Type</h2>
           <div className="space-y-2">
-            {Object.entries(stats.iocs_by_type).map(([type, count]) => {
+            {Object.entries(stats.iocs_by_type || {}).map(([type, count]) => {
               const pct = stats.total_iocs > 0
                 ? Math.round((count / stats.total_iocs) * 100)
                 : 0

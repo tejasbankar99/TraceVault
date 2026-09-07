@@ -46,25 +46,27 @@ _IOC_SHAPE = {
 
 
 def _case_node(case: Case) -> dict:
+    label = getattr(case, "case_id", str(case.id)[:8])
     return {
         "data": {
             "id": f"case:{case.id}",
-            "label": case.email_subject or str(case.id)[:8],
+            "label": label,
             "type": "CASE",
             "severity": case.severity,
             "status": case.status,
-            "case_id": str(case.id),
+            "case_id": getattr(case, "case_id", str(case.id)),
         },
         "classes": f"case severity-{(case.severity or 'INFO').lower()}",
     }
 
 
 def _ioc_node(ioc: IOC) -> dict:
+    val = ioc.ioc_value or ""
     return {
         "data": {
             "id": f"ioc:{ioc.id}",
-            "label": ioc.value if len(ioc.value) <= 40 else ioc.value[:37] + "…",
-            "full_value": ioc.value,
+            "label": val if len(val) <= 40 else val[:37] + "…",
+            "full_value": val,
             "type": ioc.ioc_type,
             "severity": ioc.severity,
             "ioc_id": str(ioc.id),
@@ -94,7 +96,8 @@ def _shared_ioc_edges(iocs: list[IOC]) -> list[dict]:
     """Create edges between IOC nodes that share identical values across different cases."""
     value_map: dict[str, list[IOC]] = {}
     for ioc in iocs:
-        value_map.setdefault(ioc.value, []).append(ioc)
+        if ioc.ioc_value:
+            value_map.setdefault(ioc.ioc_value, []).append(ioc)
 
     edges: list[dict] = []
     for value, group in value_map.items():
@@ -194,7 +197,7 @@ async def get_case_graph(
     if focal_case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case {case_id} not found")
 
-    focal_ioc_values = {ioc.value for ioc in (focal_case.iocs or [])}
+    focal_ioc_values = {ioc.ioc_value for ioc in (focal_case.iocs or []) if ioc.ioc_value}
 
     nodes: list[dict] = [_case_node(focal_case)]
     edges: list[dict] = []
@@ -214,7 +217,7 @@ async def get_case_graph(
         related_cases: list[Case] = list(related_result.scalars().all())
 
         for rcase in related_cases:
-            rcase_values = {ioc.value for ioc in (rcase.iocs or [])}
+            rcase_values = {ioc.ioc_value for ioc in (rcase.iocs or []) if ioc.ioc_value}
             if not rcase_values.intersection(focal_ioc_values):
                 continue  # No shared IOCs — skip
 

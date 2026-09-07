@@ -20,7 +20,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -218,8 +218,8 @@ async def list_cases(
         search_term = f"%{q}%"
         query = query.where(
             or_(
-                Case.id.cast(str).ilike(search_term),
-                Case.email_subject.ilike(search_term),
+                cast(Case.id, String).ilike(search_term),
+                Case.case_id.ilike(search_term),
             )
         )
 
