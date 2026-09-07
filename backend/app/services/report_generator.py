@@ -51,6 +51,44 @@ class ReportGeneratorService:
     # Public API
     # ------------------------------------------------------------------
 
+    def _prepare_context(self, case_data: dict) -> dict[str, Any]:
+        """Normalize context so all template variables and aliases are populated."""
+        ctx: dict[str, Any] = {
+            "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "platform_name": "TraceVault",
+            "platform_version": "1.0.0",
+        }
+        if isinstance(case_data, dict):
+            ctx.update(case_data)
+            # Ensure aliases so all template variables work seamlessly
+            if "case" not in ctx:
+                ctx["case"] = case_data
+            if "headers_data" in ctx and "headers" not in ctx:
+                ctx["headers"] = ctx["headers_data"]
+            if "headers" in ctx and "headers_data" not in ctx:
+                ctx["headers_data"] = ctx["headers"]
+            if "relay_path" in ctx and "relay_hops" not in ctx:
+                ctx["relay_hops"] = ctx["relay_path"]
+            if "relay_hops" in ctx and "relay_path" not in ctx:
+                ctx["relay_path"] = ctx["relay_hops"]
+            if "blockchain_entries" in ctx and "blockchain_ledger" not in ctx:
+                ctx["blockchain_ledger"] = ctx["blockchain_entries"]
+            if "blockchain_ledger" in ctx and "blockchain_entries" not in ctx:
+                ctx["blockchain_entries"] = ctx["blockchain_ledger"]
+            if "auth_results" in ctx and "auth" not in ctx:
+                ctx["auth"] = ctx["auth_results"]
+            if "auth" in ctx and "auth_results" not in ctx:
+                ctx["auth_results"] = ctx["auth"]
+            if "report_metadata" not in ctx:
+                ctx["report_metadata"] = {
+                    "generated_at": ctx["generated_at"],
+                    "analyst": ctx.get("analyst_name") or "Senior Forensic Examiner",
+                    "classification": "CONFIDENTIAL — FOR OFFICIAL USE ONLY",
+                }
+        else:
+            ctx["case"] = case_data
+        return ctx
+
     async def generate_pdf(self, case_data: dict) -> bytes:
         """
         Render the forensic report HTML template and convert it to PDF bytes.
@@ -67,17 +105,10 @@ class ReportGeneratorService:
             Raw PDF bytes ready to be streamed to the client.
         """
         template = self.env.get_template("forensic_report.html")
-        html_content = template.render(
-            case=case_data,
-            generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-            platform_name="TraceVault",
-            platform_version="1.0.0",
-        )
+        ctx = self._prepare_context(case_data)
+        html_content = template.render(**ctx)
 
-        css = weasyprint.CSS(string=self._get_report_css())
-        pdf_bytes = weasyprint.HTML(string=html_content).write_pdf(
-            stylesheets=[css]
-        )
+        pdf_bytes = weasyprint.HTML(string=html_content).write_pdf()
         return pdf_bytes
 
     async def generate_html(self, case_data: dict) -> str:
@@ -85,12 +116,8 @@ class ReportGeneratorService:
         Return the rendered HTML string (useful for preview or testing).
         """
         template = self.env.get_template("forensic_report.html")
-        return template.render(
-            case=case_data,
-            generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-            platform_name="TraceVault",
-            platform_version="1.0.0",
-        )
+        ctx = self._prepare_context(case_data)
+        return template.render(**ctx)
 
     # ------------------------------------------------------------------
     # Jinja2 custom filter implementations

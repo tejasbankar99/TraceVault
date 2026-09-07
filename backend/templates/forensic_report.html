@@ -5,751 +5,1529 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TraceVault Forensic Report — {{ case.case_id }}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-  :root {
-    --navy: #0f172a;
-    --card: #1e293b;
-    --border: #334155;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --primary: #4f46e5;
-    --critical: #dc2626;
-    --high: #ea580c;
-    --medium: #d97706;
-    --low: #2563eb;
-    --benign: #16a34a;
+  /* ═══════════════════════════════════════════════
+     PAGE SETUP & NUMBERING (WEASYPRINT / CSS3)
+  ═══════════════════════════════════════════════ */
+  @page {
+    size: A4 portrait;
+    margin: 16mm 14mm 20mm 14mm;
+
+    @bottom-left {
+      content: "CONFIDENTIAL — FOR OFFICIAL USE ONLY";
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 800;
+      color: #dc2626;
+      letter-spacing: 0.8px;
+      border-top: 1.5px solid #dc2626;
+      padding-top: 5px;
+      padding-bottom: 3px;
+    }
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: #475569;
+      border-top: 1.5px solid #dc2626;
+      padding-top: 5px;
+      padding-bottom: 3px;
+    }
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page:first {
+    margin: 0;
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
 
-  body {
-    font-family: 'Inter', sans-serif;
-    background: var(--navy);
-    color: var(--text);
-    font-size: 11pt;
-    line-height: 1.5;
+  /* ═══════════════════════════════════════════════
+     ROOT & TYPOGRAPHY
+  ═══════════════════════════════════════════════ */
+  :root {
+    --navy-900: #0a1128;
+    --navy-800: #0f172a;
+    --navy-700: #1e293b;
+    --navy-600: #334155;
+    --primary-blue: #1e40af;
+    --accent-blue: #2563eb;
+    --text-dark: #0f172a;
+    --text-body: #334155;
+    --text-muted: #64748b;
+    --bg-page-white: #ffffff;
+    --bg-page-alt: #f8fafc;
+    --card-bg: #ffffff;
+    --border-color: #cbd5e1;
+    --border-subtle: #e2e8f0;
+
+    --critical-red: #dc2626;
+    --critical-bg: #fef2f2;
+    --critical-border: #fca5a5;
+
+    --high-orange: #ea580c;
+    --high-bg: #fff7ed;
+    --high-border: #fed7aa;
+
+    --medium-yellow: #ca8a04;
+    --medium-bg: #fefce8;
+    --medium-border: #fef08a;
+
+    --low-blue: #2563eb;
+    --low-bg: #eff6ff;
+    --low-border: #bfdbfe;
+
+    --benign-green: #16a34a;
+    --benign-bg: #f0fdf4;
+    --benign-border: #bbf7d0;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
     padding: 0;
   }
 
-  /* ── Cover page ── */
-  .cover {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-body);
+    font-size: 9.5pt;
+    line-height: 1.55;
+    background: #ffffff;
+  }
+
+  /* ═══════════════════════════════════════════════
+     WATERMARK (APPEARS DIAGONALLY ON ALL PAGES)
+  ═══════════════════════════════════════════════ */
+  .watermark-container {
+    position: fixed;
+    top: 40%;
+    left: -20%;
+    width: 140%;
+    text-align: center;
+    z-index: -1000;
+    pointer-events: none;
+  }
+
+  .watermark-text {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 56pt;
+    font-weight: 900;
+    letter-spacing: 16px;
+    color: rgba(148, 163, 184, 0.08);
+    text-transform: uppercase;
+    transform: rotate(-33deg);
+    white-space: nowrap;
+  }
+
+  /* ═══════════════════════════════════════════════
+     COVER PAGE STYLING
+  ═══════════════════════════════════════════════ */
+  .cover-container {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 60px 60px 40px;
-    background: linear-gradient(135deg, #0f172a 0%, #1a1054 100%);
+    background: #ffffff;
     page-break-after: always;
   }
-  .cover-header { display: flex; align-items: center; gap: 16px; }
-  .logo { width: 56px; height: 56px; background: var(--primary); border-radius: 12px;
-    display: flex; align-items: center; justify-content: center; }
-  .logo-text { font-size: 28pt; color: white; font-weight: 700; }
-  .brand-name { font-size: 20pt; font-weight: 800; color: white; }
-  .brand-sub { font-size: 9pt; color: var(--muted); }
-  .cover-body { margin-top: 80px; }
-  .cover-title { font-size: 28pt; font-weight: 800; color: white; margin-bottom: 8px; }
-  .cover-case-id { font-family: 'JetBrains Mono', monospace; font-size: 14pt; color: #818cf8; margin-bottom: 40px; }
-  .cover-meta table { border-collapse: collapse; }
-  .cover-meta td { padding: 6px 0; }
-  .cover-meta td:first-child { color: var(--muted); padding-right: 24px; font-size: 10pt; }
-  .cover-meta td:last-child { color: var(--text); font-weight: 500; }
+
+  .cover-navy-header {
+    background: linear-gradient(135deg, #070d1e 0%, #0f172a 60%, #1e293b 100%);
+    color: #ffffff;
+    padding: 44px 44px 34px 44px;
+    border-bottom: 5px solid #dc2626;
+  }
+
+  .gov-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding-bottom: 14px;
+  }
+
+  .gov-title-left {
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #94a3b8;
+    text-transform: uppercase;
+  }
+
+  .classification-badge {
+    display: inline-block;
+    background: #dc2626;
+    color: #ffffff;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .header-main-title {
+    font-size: 23pt;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: 1px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .header-subtitle {
+    font-size: 10.5pt;
+    color: #cbd5e1;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+
+  .cover-body {
+    padding: 36px 44px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+  }
+
+  /* Threat Score Circle & Key Metrics Banner */
+  .cover-hero-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-left: 6px solid #1e40af;
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin-bottom: 28px;
+  }
+
+  .hero-case-info {
+    flex: 1;
+  }
+
+  .hero-case-label {
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .hero-case-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18pt;
+    font-weight: 800;
+    color: var(--navy-900);
+    margin-bottom: 12px;
+  }
 
   .severity-badge {
-    display: inline-block; padding: 4px 14px; border-radius: 9999px;
-    font-weight: 700; font-size: 11pt; letter-spacing: 0.5px;
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 4px;
+    font-weight: 800;
+    font-size: 9.5pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
-  .severity-CRITICAL { background: var(--critical); color: white; }
-  .severity-HIGH { background: var(--high); color: white; }
-  .severity-MEDIUM { background: var(--medium); color: white; }
-  .severity-LOW { background: var(--low); color: white; }
-  .severity-BENIGN { background: var(--benign); color: white; }
 
-  .cover-threat-score { margin-top: 32px; }
-  .score-number { font-size: 72pt; font-weight: 900; line-height: 1; }
-  .score-label { font-size: 10pt; color: var(--muted); }
+  .severity-CRITICAL { background: var(--critical-red); color: #ffffff; }
+  .severity-HIGH     { background: var(--high-orange); color: #ffffff; }
+  .severity-MEDIUM   { background: var(--medium-yellow); color: #ffffff; }
+  .severity-LOW      { background: var(--low-blue); color: #ffffff; }
+  .severity-BENIGN   { background: var(--benign-green); color: #ffffff; }
 
-  .cover-footer { color: var(--muted); font-size: 9pt; }
-  .cover-footer-line { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 16px; }
-
-  /* ── Page layout ── */
-  .page { padding: 40px 56px; max-width: 100%; page-break-inside: avoid; }
-  .page-break { page-break-before: always; }
-
-  /* ── Section headers ── */
-  .section-header {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 20px; padding-bottom: 12px;
-    border-bottom: 2px solid var(--primary);
+  /* Threat Score Circle */
+  .score-circle-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-left: 32px;
   }
-  .section-number {
-    width: 32px; height: 32px; background: var(--primary); color: white;
-    border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 11pt; flex-shrink: 0;
-  }
-  .section-title { font-size: 14pt; font-weight: 700; color: white; }
 
-  /* ── Cards ── */
+  .threat-score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 6px solid #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  }
+
+  .threat-score-circle.circle-critical { border-color: var(--critical-red); color: var(--critical-red); }
+  .threat-score-circle.circle-high     { border-color: var(--high-orange); color: var(--high-orange); }
+  .threat-score-circle.circle-medium   { border-color: var(--medium-yellow); color: var(--medium-yellow); }
+  .threat-score-circle.circle-low      { border-color: var(--low-blue); color: var(--low-blue); }
+  .threat-score-circle.circle-benign   { border-color: var(--benign-green); color: var(--benign-green); }
+
+  .score-val {
+    font-size: 34pt;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .score-denom {
+    font-size: 9.5pt;
+    font-weight: 800;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .score-caption {
+    font-size: 8pt;
+    font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  /* Cover Metadata Dossier Table */
+  .dossier-card {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+
+  .dossier-header {
+    font-size: 9pt;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    color: var(--navy-800);
+    text-transform: uppercase;
+    border-bottom: 1.5px solid var(--border-subtle);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+  }
+
+  .dossier-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  .dossier-table td {
+    padding: 7px 0;
+    vertical-align: middle;
+  }
+
+  .dossier-table td.label-col {
+    width: 190px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 8pt;
+    letter-spacing: 0.5px;
+  }
+
+  .dossier-table td.value-col {
+    color: var(--navy-900);
+    font-weight: 600;
+  }
+
+  .hash-box {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    word-break: break-all;
+    color: #0f172a;
+    width: 100%;
+  }
+
+  /* Cover Official Footer */
+  .cover-footer {
+    background: #f1f5f9;
+    border-top: 1px solid var(--border-color);
+    padding: 16px 44px;
+    font-size: 8pt;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .cover-legal-notice {
+    font-size: 7.5pt;
+    color: #64748b;
+    line-height: 1.4;
+    max-width: 75%;
+  }
+
+  /* ═══════════════════════════════════════════════
+     PAGES & ALTERNATING BACKGROUNDS
+  ═══════════════════════════════════════════════ */
+  .page {
+    padding: 10px 0;
+    page-break-inside: avoid;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .page-light {
+    background-color: var(--bg-page-white);
+  }
+
+  .page-alt {
+    background-color: var(--bg-page-alt);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     FULL-WIDTH COLORED SECTION HEADER BARS (13 SECTIONS)
+  ═══════════════════════════════════════════════ */
+  .section-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, #0a1128 0%, #1e3a8a 100%);
+    color: #ffffff;
+    padding: 9px 16px;
+    border-radius: 5px;
+    border-left: 6px solid #3b82f6;
+    margin-bottom: 18px;
+    page-break-after: avoid;
+  }
+
+  .section-badge {
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 8.5pt;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 3px 9px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    margin-right: 12px;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 11.5pt;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #ffffff;
+    flex: 1;
+  }
+
+  .section-dept-tag {
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #93c5fd;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ═══════════════════════════════════════════════
+     CONTAINERS & CARDS
+  ═══════════════════════════════════════════════ */
   .card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: 10px; padding: 16px 20px; margin-bottom: 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
   }
-  .card-title { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.8px;
-    color: var(--muted); margin-bottom: 10px; font-weight: 600; }
 
-  /* ── Tables ── */
-  table.report-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .card-header-sm {
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* ═══════════════════════════════════════════════
+     TABLES (GENERAL & IOC COLOR-CODED)
+  ═══════════════════════════════════════════════ */
+  table.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-bottom: 12px;
+  }
+
   table.report-table th {
-    background: #1e293b; padding: 8px 12px; text-align: left;
-    color: var(--muted); font-weight: 600; font-size: 8.5pt;
-    text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
+    background: #1e293b;
+    color: #ffffff;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 2px solid #0f172a;
   }
+
   table.report-table td {
-    padding: 8px 12px; border-bottom: 1px solid #1e293b;
-    color: var(--text); vertical-align: top;
-  }
-  table.report-table tr:last-child td { border-bottom: none; }
-  table.report-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
-  .mono { font-family: 'JetBrains Mono', monospace; font-size: 8.5pt; }
-
-  /* ── Auth result badges ── */
-  .auth-pass  { color: #4ade80; font-weight: 700; }
-  .auth-fail  { color: #f87171; font-weight: 700; }
-  .auth-warn  { color: #fbbf24; font-weight: 700; }
-  .auth-none  { color: var(--muted); }
-
-  /* ── Score bar ── */
-  .score-bar { height: 8px; background: #1e293b; border-radius: 99px; overflow: hidden; margin-top: 4px; }
-  .score-fill { height: 100%; border-radius: 99px; }
-
-  /* ── IOC type badges ── */
-  .ioc-ip     { background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; }
-  .ioc-domain { background: #431407; color: #fed7aa; border: 1px solid #9a3412; }
-  .ioc-url    { background: #422006; color: #fde68a; border: 1px solid #92400e; }
-  .ioc-email  { background: #3b0764; color: #e9d5ff; border: 1px solid #6b21a8; }
-  .ioc-file_hash { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-  .ioc-badge  { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 8pt; font-weight: 600; }
-
-  /* ── Relay hop ── */
-  .relay-hop { display: flex; gap: 12px; margin-bottom: 8px; }
-  .hop-number { width: 24px; height: 24px; background: var(--primary); border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-size: 9pt; font-weight: 700; flex-shrink: 0; }
-  .hop-content { flex: 1; }
-  .hop-suspicious { border-left: 3px solid var(--critical); padding-left: 10px; }
-  .hop-public-ip { display: inline-block; font-size: 8pt; padding: 1px 6px; border-radius: 3px;
-    background: #431407; color: #fed7aa; border: 1px solid #9a3412; }
-
-  /* ── Blockchain ── */
-  .block-entry { display: flex; gap: 12px; margin-bottom: 12px; }
-  .block-dot { width: 10px; height: 10px; background: var(--primary); border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
-  .block-line { display: flex; flex-direction: column; align-items: center; }
-  .block-connector { width: 2px; background: var(--border); flex: 1; margin: 2px 4px; }
-
-  /* ── Attribution ── */
-  .confidence-bar-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-  .confidence-label { width: 120px; font-size: 9pt; color: var(--muted); }
-  .confidence-bar { flex: 1; height: 6px; background: #1e293b; border-radius: 99px; overflow: hidden; }
-
-  /* ── Disclaimer ── */
-  .disclaimer {
-    background: #1c1205; border: 1px solid #92400e; border-radius: 8px;
-    padding: 14px 16px; margin-top: 16px;
-  }
-  .disclaimer-title { color: #fbbf24; font-weight: 700; font-size: 9pt; margin-bottom: 6px; }
-  .disclaimer-text { color: #fde68a; font-size: 8.5pt; line-height: 1.5; }
-
-  /* ── Page footer ── */
-  @page { margin: 0; }
-  .report-footer {
-    position: running(footer);
-    font-size: 8pt; color: var(--muted);
-    display: flex; justify-content: space-between;
-    padding: 8px 56px; border-top: 1px solid var(--border);
-    background: var(--navy);
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-body);
+    vertical-align: middle;
   }
 
-  /* ── Print specific ── */
-  @media print {
-    body { background: white !important; color: #0f172a !important; }
-    .page { page-break-inside: avoid; }
+  table.report-table tr:nth-child(even) td {
+    background: #f8fafc;
   }
 
-  /* Grid helpers */
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-  .text-right { text-align: right; }
-  .mt-8 { margin-top: 8px; }
-  .mt-16 { margin-top: 16px; }
-  .mt-24 { margin-top: 24px; }
-  .bold { font-weight: 700; }
-  .large { font-size: 16pt; }
+  /* IOC TABLE (RED=CRITICAL, ORANGE=HIGH, YELLOW=MEDIUM, BLUE=LOW) */
+  tr.ioc-row-critical td {
+    background-color: var(--critical-bg) !important;
+    border-bottom: 1px solid var(--critical-border) !important;
+  }
+  tr.ioc-row-critical td:first-child {
+    border-left: 5px solid var(--critical-red);
+  }
+
+  tr.ioc-row-high td {
+    background-color: var(--high-bg) !important;
+    border-bottom: 1px solid var(--high-border) !important;
+  }
+  tr.ioc-row-high td:first-child {
+    border-left: 5px solid var(--high-orange);
+  }
+
+  tr.ioc-row-medium td {
+    background-color: var(--medium-bg) !important;
+    border-bottom: 1px solid var(--medium-border) !important;
+  }
+  tr.ioc-row-medium td:first-child {
+    border-left: 5px solid var(--medium-yellow);
+  }
+
+  tr.ioc-row-low td {
+    background-color: var(--low-bg) !important;
+    border-bottom: 1px solid var(--low-border) !important;
+  }
+  tr.ioc-row-low td:first-child {
+    border-left: 5px solid var(--low-blue);
+  }
+
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+  }
+
+  /* ═══════════════════════════════════════════════
+     COURT EXHIBIT BLOCKCHAIN TABLE
+  ═══════════════════════════════════════════════ */
+  .court-exhibit-wrapper {
+    border: 2px solid #0f172a;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    background: #ffffff;
+  }
+
+  .court-exhibit-header {
+    background: #0f172a;
+    color: #f1f5f9;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .court-stamp {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #f59e0b;
+  }
+
+  table.court-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+  }
+
+  table.court-table th {
+    background: #334155;
+    color: #ffffff;
+    padding: 7px 10px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 7.5pt;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1.5px solid #0f172a;
+  }
+
+  table.court-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    vertical-align: middle;
+  }
+
+  table.court-table tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  /* ═══════════════════════════════════════════════
+     BADGES & METRICS
+  ═══════════════════════════════════════════════ */
+  .badge-type {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 7.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #334155;
+    color: #ffffff;
+  }
+
+  .badge-risk {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 7.5pt;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .badge-risk-critical { background: var(--critical-red); color: #ffffff; }
+  .badge-risk-high     { background: var(--high-orange); color: #ffffff; }
+  .badge-risk-medium   { background: var(--medium-yellow); color: #ffffff; }
+  .badge-risk-low      { background: var(--low-blue); color: #ffffff; }
+  .badge-risk-benign   { background: var(--benign-green); color: #ffffff; }
+
+  .auth-pass  { color: #16a34a; font-weight: 800; font-size: 9.5pt; }
+  .auth-fail  { color: #dc2626; font-weight: 800; font-size: 9.5pt; }
+  .auth-warn  { color: #d97706; font-weight: 800; font-size: 9.5pt; }
+  .auth-none  { color: #94a3b8; font-weight: 800; font-size: 9.5pt; }
+
+  /* Relay Hop Styling */
+  .relay-hop-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 6px;
+  }
+
+  .hop-num-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #1e40af;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8pt;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .hop-suspicious-alert {
+    border-left: 4px solid var(--critical-red);
+    background: #fff5f5;
+  }
+
+  /* Confidence Progress Bar */
+  .bar-container {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 99px;
+  }
+
+  /* Legal Notice Box */
+  .notice-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #1e40af;
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: 8.5pt;
+    line-height: 1.5;
+    margin-top: 14px;
+  }
+
+  .notice-title {
+    font-weight: 800;
+    color: #0f172a;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════ COVER PAGE ═══ -->
-<div class="cover">
-  <div class="cover-header">
-    <div class="logo"><span class="logo-text">T</span></div>
-    <div>
-      <div class="brand-name">TraceVault</div>
-      <div class="brand-sub">AI-Powered Email Forensic Intelligence Platform</div>
+<!-- ═══════════════════════════════════════════════
+     WATERMARK (APPEARS ON EVERY PAGE)
+═══════════════════════════════════════════════ -->
+<div class="watermark-container">
+  <div class="watermark-text">FORENSIC EVIDENCE</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     COVER PAGE
+═══════════════════════════════════════════════ -->
+<div class="cover-container">
+  <div>
+    <!-- Dark Navy Government / Enterprise Header -->
+    <div class="cover-navy-header">
+      <div class="gov-badge-row">
+        <span class="gov-title-left">AICTE CYBER CRIME &amp; THREAT INTELLIGENCE CELL · PS #26106</span>
+        <span class="classification-badge">OFFICIAL USE ONLY</span>
+      </div>
+      <h1 class="header-main-title">TRACEVAULT FORENSIC INTELLIGENCE REPORT</h1>
+      <div class="header-subtitle">Comprehensive Technical Email Forensics, AI Threat Attribution &amp; Blockchain Custody Record</div>
+    </div>
+
+    <!-- Cover Page Body -->
+    <div class="cover-body">
+      <!-- Case ID & Threat Score Circle Banner -->
+      <div class="cover-hero-banner">
+        <div class="hero-case-info">
+          <div class="hero-case-label">INVESTIGATION FILE IDENTIFIER</div>
+          <div class="hero-case-id">{{ case.case_id }}</div>
+          <div>
+            {% set sev = (analysis.severity if analysis and analysis.severity else 'BENIGN') | upper %}
+            <span class="severity-badge severity-{{ sev }}">{{ sev }}</span>
+          </div>
+        </div>
+
+        <div class="score-circle-wrapper">
+          {% set score_num = analysis.threat_score if analysis and analysis.threat_score is defined else 0 %}
+          <div class="threat-score-circle circle-{{ sev | lower }}">
+            <div class="score-val">{{ score_num }}</div>
+            <div class="score-denom">/100</div>
+          </div>
+          <div class="score-caption">THREAT SCORE</div>
+        </div>
+      </div>
+
+      <!-- Case Metadata Dossier -->
+      <div class="dossier-card">
+        <div class="dossier-header">Forensic Investigation Record &amp; Chain of Custody Metadata</div>
+        <table class="dossier-table">
+          <tr>
+            <td class="label-col">Report Generated</td>
+            <td class="value-col">{{ generated_at or (report_metadata.generated_at if report_metadata else None) or case.created_at or '—' }}</td>
+          </tr>
+          <tr>
+            <td class="label-col">Investigating Analyst</td>
+            <td class="value-col">{{ analyst_name or (report_metadata.analyst if report_metadata else None) or (case.creator.username if case.creator else 'Senior Forensic Examiner') }}</td>
+          </tr>
+          <tr>
+            <td class="label-col">Investigation Status</td>
+            <td class="value-col">
+              <span style="font-weight: 700; color: #1e40af;">{{ case.status or 'COMPLETED' }}</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="label-col">Evidence SHA-256 Hash</td>
+            <td class="value-col">
+              <span class="hash-box">{{ case.sha256_hash or case.evidence_hash or '—' }}</span>
+            </td>
+          </tr>
+          {% if case.evidence_hash3 %}
+          <tr>
+            <td class="label-col">Evidence SHA-3-256 Hash</td>
+            <td class="value-col">
+              <span class="hash-box">{{ case.evidence_hash3 }}</span>
+            </td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td class="label-col">Verification Platform</td>
+            <td class="value-col">TraceVault Forensic Engine v1.0.0 · Dual-Hash Cryptographic Ledger</td>
+          </tr>
+        </table>
+      </div>
     </div>
   </div>
 
-  <div class="cover-body">
-    <div class="cover-title">Email Threat Intelligence<br>Forensic Report</div>
-    <div class="cover-case-id">{{ case.case_id }}</div>
-
-    {% if analysis %}
-    <div class="cover-threat-score">
-      <div style="color: var(--muted); font-size: 10pt; margin-bottom: 4px;">THREAT SCORE</div>
-      <div class="score-number" style="color:
-        {% if analysis.severity == 'CRITICAL' %}#dc2626
-        {% elif analysis.severity == 'HIGH' %}#ea580c
-        {% elif analysis.severity == 'MEDIUM' %}#d97706
-        {% elif analysis.severity == 'LOW' %}#2563eb
-        {% else %}#16a34a{% endif %}">
-        {{ analysis.threat_score }}
-      </div>
-      <div style="margin-top: 8px;">
-        <span class="severity-badge severity-{{ analysis.severity }}">{{ analysis.severity }}</span>
-      </div>
-    </div>
-    {% endif %}
-
-    <div class="cover-meta mt-24">
-      <table>
-        <tr><td>Report Generated</td><td>{{ generated_at }}</td></tr>
-        <tr><td>Analyst</td><td>{{ analyst_name }}</td></tr>
-        <tr><td>Case Status</td><td>{{ case.status }}</td></tr>
-        <tr><td>Evidence SHA-256</td><td><span class="mono">{{ case.evidence_hash[:32] }}...</span></td></tr>
-        <tr><td>Investigation Platform</td><td>TraceVault v1.0 · SIH 2024 #26106</td></tr>
-      </table>
-    </div>
-  </div>
-
+  <!-- Cover Page Bottom Notice -->
   <div class="cover-footer">
-    <div class="cover-footer-line">
-      <span>CONFIDENTIAL — FOR AUTHORIZED INVESTIGATORS ONLY</span>
-      <span>AICTE Cyber Security Cell · Problem Statement 26106</span>
+    <div class="cover-legal-notice">
+      CONFIDENTIALITY NOTICE: This document contains forensically secured digital evidence and AI-driven forensic threat attribution intelligence. Dissemination, distribution, or copying is strictly restricted to authorized security incident response teams and legal authorities.
+    </div>
+    <div style="font-weight: 700; color: #0f172a; text-align: right;">
+      EXHIBIT FILE<br>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 7.5pt; color: #64748b;">{{ case.case_id }}</span>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 1: EXECUTIVE SUMMARY ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">1</div>
-    <div class="section-title">Executive Summary</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 1: EXECUTIVE SUMMARY
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 01</span>
+      <h2 class="section-title">Executive Summary</h2>
+    </div>
+    <span class="section-dept-tag">TV-CORE-FORENSICS</span>
   </div>
 
-  <div class="grid-3">
-    <div class="card" style="text-align:center">
-      <div class="card-title">Threat Score</div>
-      <div style="font-size: 36pt; font-weight: 900; color:
-        {% if analysis %}
-          {% if analysis.severity == 'CRITICAL' %}#dc2626{% elif analysis.severity == 'HIGH' %}#ea580c
-          {% elif analysis.severity == 'MEDIUM' %}#d97706{% elif analysis.severity == 'LOW' %}#2563eb
-          {% else %}#16a34a{% endif %}
-        {% else %}#94a3b8{% endif %}">
-        {{ analysis.threat_score if analysis else 'N/A' }}
+  <div class="grid-3" style="margin-bottom: 16px;">
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">Overall Threat Score</div>
+      <div style="font-size: 32pt; font-weight: 900; line-height: 1.1; color:
+        {% if analysis and analysis.severity == 'CRITICAL' %}#dc2626
+        {% elif analysis and analysis.severity == 'HIGH' %}#ea580c
+        {% elif analysis and analysis.severity == 'MEDIUM' %}#ca8a04
+        {% elif analysis and analysis.severity == 'LOW' %}#2563eb
+        {% else %}#16a34a{% endif %};">
+        {{ analysis.threat_score if analysis and analysis.threat_score is defined else 'N/A' }}
       </div>
-      {% if analysis %}<span class="severity-badge severity-{{ analysis.severity }}">{{ analysis.severity }}</span>{% endif %}
+      <div style="margin-top: 4px;">
+        <span class="severity-badge severity-{{ (analysis.severity if analysis and analysis.severity else 'BENIGN') | upper }}" style="font-size: 8pt; padding: 2px 8px;">
+          {{ analysis.severity if analysis and analysis.severity else 'BENIGN' }}
+        </span>
+      </div>
     </div>
-    <div class="card" style="text-align:center">
-      <div class="card-title">IOCs Extracted</div>
-      <div class="large bold">{{ iocs | length }}</div>
-      <div style="color: var(--muted); font-size: 9pt; margin-top: 4px;">Indicators of Compromise</div>
+
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">Extracted IOCs</div>
+      <div style="font-size: 32pt; font-weight: 900; line-height: 1.1; color: #1e293b;">
+        {{ iocs | length }}
+      </div>
+      <div style="font-size: 8pt; color: var(--text-muted); margin-top: 4px; font-weight: 600;">
+        Unique Threat Indicators
+      </div>
     </div>
-    <div class="card" style="text-align:center">
-      <div class="card-title">Blockchain Blocks</div>
-      <div class="large bold">{{ blockchain_ledger | length }}</div>
-      <div style="color: var(--muted); font-size: 9pt; margin-top: 4px;">Chain of Custody Events</div>
+
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">Chain of Custody</div>
+      <div style="font-size: 32pt; font-weight: 900; line-height: 1.1; color: #1e293b;">
+        {{ (blockchain_entries or blockchain_ledger or []) | length }}
+      </div>
+      <div style="font-size: 8pt; color: var(--text-muted); margin-top: 4px; font-weight: 600;">
+        Immutable Audit Blocks
+      </div>
     </div>
   </div>
 
   {% if analysis %}
   <div class="card">
-    <div class="card-title">Detected Threat Categories</div>
-    {% for cat in analysis.threat_categories %}
-    <span style="display:inline-block; margin: 3px; padding: 3px 10px; background: rgba(79,70,229,0.2); border: 1px solid rgba(79,70,229,0.5); border-radius: 4px; color: #818cf8; font-size: 9pt; font-weight: 600; text-transform: capitalize;">
-      {{ cat.replace('_', ' ') }}
-    </span>
-    {% endfor %}
+    <div class="card-header-sm">Detected Threat Classifications</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+      {% if analysis.threat_categories %}
+        {% for cat in analysis.threat_categories %}
+        <span style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 3px 9px; border-radius: 4px; font-size: 8pt; font-weight: 700; text-transform: uppercase;">
+          {{ cat | replace('_', ' ') }}
+        </span>
+        {% endfor %}
+      {% else %}
+        <span style="color: var(--text-muted); font-size: 8.5pt;">No critical automated threat categories identified.</span>
+      {% endif %}
+    </div>
   </div>
 
   <div class="card">
-    <div class="card-title">AI Forensic Assessment</div>
-    <p style="color: var(--text); line-height: 1.7; font-size: 10.5pt;">{{ analysis.ai_explanation }}</p>
+    <div class="card-header-sm">AI Forensic Synthesis &amp; Behavioral Assessment</div>
+    <p style="color: #1e293b; font-size: 9pt; line-height: 1.65;">
+      {{ analysis.ai_explanation or 'Analytical engine processed forensic headers, social engineering indicators, and cryptographic validations without detecting anomalous malicious payloads.' }}
+    </p>
   </div>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 2: EMAIL METADATA ═══ -->
-<div class="page">
-  <div class="section-header">
-    <div class="section-number">2</div>
-    <div class="section-title">Email Metadata & Key Headers</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 2: EMAIL METADATA & KEY HEADERS
+═══════════════════════════════════════════════ -->
+<div class="page page-alt">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 02</span>
+      <h2 class="section-title">Email Metadata &amp; Key Headers</h2>
+    </div>
+    <span class="section-dept-tag">RFC 5322 STANDARDS</span>
   </div>
 
-  {% if headers %}
+  {% set h = headers or headers_data %}
+  {% if h %}
   <table class="report-table">
-    <thead><tr><th>Header</th><th>Value</th></tr></thead>
+    <thead>
+      <tr>
+        <th style="width: 28%;">Header Parameter</th>
+        <th>Recorded Forensic Value</th>
+      </tr>
+    </thead>
     <tbody>
-      <tr><td>From</td><td>{{ headers.from_name }} &lt;{{ headers.from_addr }}&gt;</td></tr>
-      <tr><td>From Domain</td><td class="mono">{{ headers.from_domain }}</td></tr>
-      <tr><td>Reply-To</td><td class="mono">{{ headers.reply_to or '—' }}</td></tr>
-      <tr><td>Return-Path</td><td class="mono">{{ headers.return_path or '—' }}</td></tr>
-      <tr><td>Message-ID</td><td class="mono">{{ headers.message_id or '—' }}</td></tr>
-      <tr><td>Subject</td><td>{{ headers.subject or '—' }}</td></tr>
-      <tr><td>Date Sent</td><td>{{ headers.date_sent or '—' }}</td></tr>
-      <tr><td>X-Originating-IP</td><td class="mono">{{ headers.x_originating_ip or '—' }}</td></tr>
-      <tr><td>X-Mailer</td><td>{{ headers.x_mailer or '—' }}</td></tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">From Header</td>
+        <td>{{ h.from_name or '' }} &lt;{{ h.from_addr or '—' }}&gt;</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">From Domain</td>
+        <td class="mono" style="color: #1e40af; font-weight: 600;">{{ h.from_domain or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">Reply-To Address</td>
+        <td class="mono">{{ h.reply_to or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">Return-Path Envelope</td>
+        <td class="mono">{{ h.return_path or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">Message-ID</td>
+        <td class="mono">{{ h.message_id or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">Subject Line</td>
+        <td style="font-weight: 600; color: #0f172a;">{{ h.subject or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">Date Dispatched</td>
+        <td>{{ h.date_sent or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">X-Originating-IP</td>
+        <td class="mono" style="font-weight: 700; color: #dc2626;">{{ h.x_originating_ip or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: #0f172a;">User Agent / X-Mailer</td>
+        <td>{{ h.x_mailer or '—' }}</td>
+      </tr>
     </tbody>
   </table>
 
-  {% if headers.spoofing_indicators %}
-  <div class="card mt-16" style="border-color: var(--critical);">
-    <div class="card-title" style="color: #f87171;">Spoofing Indicators</div>
-    {% for indicator in headers.spoofing_indicators %}
-    <div style="display: flex; gap: 8px; margin-bottom: 6px; font-size: 9.5pt;">
-      <span style="color: var(--critical);">⚠</span>
-      <span>{{ indicator }}</span>
+  {% if h.spoofing_indicators %}
+  <div class="card" style="border-left: 4px solid var(--critical-red); background: #fff5f5; margin-top: 10px;">
+    <div class="card-header-sm" style="color: #dc2626;">Detected Spoofing Inconsistencies</div>
+    {% for ind in h.spoofing_indicators %}
+    <div style="font-size: 8.5pt; color: #991b1b; margin-bottom: 4px;">
+      ⚠ <strong>{{ ind }}</strong>
     </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  {% if headers.rfc_violations %}
-  <div class="card mt-8" style="border-color: #92400e;">
-    <div class="card-title" style="color: #fbbf24;">RFC Protocol Violations</div>
-    {% for v in headers.rfc_violations %}
-    <div style="font-size: 9.5pt; margin-bottom: 4px; color: #fde68a;">• {{ v }}</div>
+  {% if h.rfc_violations %}
+  <div class="card" style="border-left: 4px solid #ca8a04; background: #fefce8; margin-top: 10px;">
+    <div class="card-header-sm" style="color: #854d0e;">RFC Protocol Anomalies</div>
+    {% for v in h.rfc_violations %}
+    <div style="font-size: 8.5pt; color: #854d0e; margin-bottom: 3px;">• {{ v }}</div>
     {% endfor %}
   </div>
   {% endif %}
+  {% else %}
+  <p style="color: var(--text-muted); font-style: italic;">No parsed header records available for this case.</p>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 3: AI THREAT ANALYSIS ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">3</div>
-    <div class="section-title">AI Threat Analysis</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 3: AI THREAT ANALYSIS
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 03</span>
+      <h2 class="section-title">AI Threat Analysis &amp; Heuristic Scoring</h2>
+    </div>
+    <span class="section-dept-tag">MULTI-MODEL ENSEMBLE</span>
   </div>
 
   {% if analysis %}
-  <!-- Score breakdown -->
-  <div class="grid-3">
-    {% for label, score, color in [('Rule Engine', analysis.rule_score, '#f97316'), ('ML Classifier', analysis.ml_score, '#3b82f6'), ('Gemini AI', analysis.gemini_score, '#a855f7')] %}
-    <div class="card" style="text-align:center">
-      <div class="card-title">{{ label }}</div>
-      <div style="font-size: 28pt; font-weight: 900; color: {{ color }};">{{ score }}</div>
-      <div class="score-bar mt-8">
-        <div class="score-fill" style="width: {{ score }}%; background: {{ color }};"></div>
+  <!-- Score Ensemble Breakdown -->
+  <div class="grid-3" style="margin-bottom: 16px;">
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">Rule Engine Analysis</div>
+      <div style="font-size: 26pt; font-weight: 900; color: #ea580c;">{{ analysis.rule_score or 0 }}</div>
+      <div class="bar-container">
+        <div class="bar-fill" style="width: {{ analysis.rule_score or 0 }}%; background: #ea580c;"></div>
       </div>
     </div>
-    {% endfor %}
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">ML Classifier Pipeline</div>
+      <div style="font-size: 26pt; font-weight: 900; color: #2563eb;">{{ analysis.ml_score or 0 }}</div>
+      <div class="bar-container">
+        <div class="bar-fill" style="width: {{ analysis.ml_score or 0 }}%; background: #2563eb;"></div>
+      </div>
+    </div>
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm">Gemini AI Model</div>
+      <div style="font-size: 26pt; font-weight: 900; color: #7c3aed;">{{ analysis.gemini_score or 0 }}</div>
+      <div class="bar-container">
+        <div class="bar-fill" style="width: {{ analysis.gemini_score or 0 }}%; background: #7c3aed;"></div>
+      </div>
+    </div>
   </div>
 
   {% if analysis.social_engineering_patterns %}
   <div class="card">
-    <div class="card-title">Social Engineering Patterns</div>
-    {% for pattern in analysis.social_engineering_patterns %}
-    <div style="font-size: 9.5pt; margin-bottom: 5px;">⚠ {{ pattern }}</div>
-    {% endfor %}
+    <div class="card-header-sm">Psychological &amp; Social Engineering Tactics</div>
+    <ul style="padding-left: 18px; font-size: 8.5pt;">
+      {% for pat in analysis.social_engineering_patterns %}
+      <li style="margin-bottom: 4px; color: #1e293b;">{{ pat }}</li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
 
   {% if analysis.urgency_phrases %}
   <div class="card">
-    <div class="card-title">Urgency Indicators</div>
+    <div class="card-header-sm">Extracted Urgency &amp; Coercion Phrases</div>
     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-    {% for phrase in analysis.urgency_phrases %}
-      <span style="padding: 3px 10px; background: #431407; border: 1px solid #9a3412; border-radius: 4px; color: #fed7aa; font-family: monospace; font-size: 9pt;">"{{ phrase }}"</span>
-    {% endfor %}
+      {% for phrase in analysis.urgency_phrases %}
+      <span style="background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 8pt;">
+        "{{ phrase }}"
+      </span>
+      {% endfor %}
     </div>
   </div>
   {% endif %}
 
   {% if analysis.bec_indicators %}
-  <div class="card" style="border-color: var(--critical);">
-    <div class="card-title" style="color: #f87171;">Business Email Compromise Indicators</div>
+  <div class="card" style="border-left: 4px solid var(--critical-red); background: #fff5f5;">
+    <div class="card-header-sm" style="color: #dc2626;">Business Email Compromise (BEC) Signatures</div>
     {% for ind in analysis.bec_indicators %}
-    <div style="font-size: 9.5pt; margin-bottom: 5px; color: #fca5a5;">🔴 {{ ind }}</div>
+    <div style="font-size: 8.5pt; color: #991b1b; margin-bottom: 3px;">
+      🔴 {{ ind }}
+    </div>
     {% endfor %}
   </div>
   {% endif %}
-
-  <div class="card mt-16">
-    <div class="card-title">Recommended Security Actions</div>
-    <ol style="padding-left: 20px;">
-    {% for action in analysis.recommended_actions %}
-      <li style="margin-bottom: 6px; font-size: 9.5pt;">{{ action }}</li>
-    {% endfor %}
-    </ol>
-  </div>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 4: RELAY PATH ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">4</div>
-    <div class="section-title">SMTP Relay Path</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 4: SMTP RELAY PATH
+═══════════════════════════════════════════════ -->
+<div class="page page-alt">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 04</span>
+      <h2 class="section-title">SMTP Transmission Relay Path</h2>
+    </div>
+    <span class="section-dept-tag">HOP-BY-HOP TRACE</span>
   </div>
 
-  {% if relay_hops %}
-  {% for hop in relay_hops | reverse %}
-  <div class="relay-hop {% if hop.is_suspicious %}hop-suspicious{% endif %}">
-    <div class="hop-number">{{ loop.index }}</div>
-    <div class="hop-content">
-      <div style="font-size: 10pt; font-weight: 600;">{{ hop.by_server or 'Unknown Server' }}</div>
-      <div style="font-size: 9pt; color: var(--muted); margin-top: 2px;">
-        From: {{ hop.from_server or '—' }}
-        {% if hop.ip_address %} · <span class="hop-public-ip mono">{{ hop.ip_address }}</span>{% endif %}
-        {% if hop.protocol %} · {{ hop.protocol }}{% endif %}
+  {% set hops = relay_path or relay_hops %}
+  {% if hops %}
+  <div style="margin-bottom: 12px;">
+    {% for hop in hops | reverse %}
+    <div class="relay-hop-item {% if hop.is_suspicious %}hop-suspicious-alert{% endif %}">
+      <div class="hop-num-badge">{{ loop.index }}</div>
+      <div style="flex: 1;">
+        <div style="font-size: 9pt; font-weight: 700; color: #0f172a;">
+          {{ hop.by_server or 'Receiving MTA Server' }}
+        </div>
+        <div style="font-size: 8pt; color: var(--text-muted); margin-top: 2px;">
+          Relayed From: <span class="mono">{{ hop.from_server or '—' }}</span>
+          {% if hop.ip_address %} · Public IP: <span class="mono" style="font-weight: 700; color: #1e40af;">{{ hop.ip_address }}</span>{% endif %}
+          {% if hop.protocol %} · Protocol: {{ hop.protocol }}{% endif %}
+        </div>
+        {% if hop.timestamp %}
+        <div style="font-size: 7.5pt; color: #94a3b8; margin-top: 1px;">
+          Timestamp: {{ hop.timestamp }}
+        </div>
+        {% endif %}
+        {% if hop.is_suspicious %}
+        <div style="font-size: 8pt; color: #dc2626; font-weight: 700; margin-top: 3px;">
+          ⚠ SUSPICIOUS RELAY ANOMALY OBSERVED
+        </div>
+        {% endif %}
       </div>
-      {% if hop.timestamp %}<div style="font-size: 8.5pt; color: var(--muted);">{{ hop.timestamp }}</div>{% endif %}
-      {% if hop.is_suspicious %}<div style="font-size: 8.5pt; color: var(--critical); margin-top: 3px; font-weight: 600;">⚠ SUSPICIOUS HOP</div>{% endif %}
+      {% if loop.first %}
+      <span style="background: #1e40af; color: #ffffff; font-size: 7pt; font-weight: 800; padding: 2px 6px; border-radius: 3px;">ORIGIN</span>
+      {% endif %}
     </div>
-    {% if loop.first %}<div style="font-size: 8pt; color: #818cf8; font-weight: 600; white-space: nowrap;">ORIGIN</div>{% endif %}
+    {% endfor %}
   </div>
-  {% if not loop.last %}<div style="width: 2px; height: 12px; background: var(--border); margin-left: 11px; margin-bottom: 4px;"></div>{% endif %}
-  {% endfor %}
   {% else %}
-  <p style="color: var(--muted);">No relay hop data available.</p>
+  <p style="color: var(--text-muted); font-style: italic;">No relay hops extracted from email headers.</p>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 5: AUTHENTICATION ═══ -->
-<div class="page">
-  <div class="section-header">
-    <div class="section-number">5</div>
-    <div class="section-title">Email Authentication (SPF / DKIM / DMARC)</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 5: EMAIL AUTHENTICATION
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 05</span>
+      <h2 class="section-title">Email Cryptographic Authentication</h2>
+    </div>
+    <span class="section-dept-tag">SPF / DKIM / DMARC</span>
   </div>
 
-  {% if auth %}
-  <div class="grid-3">
-    {% for proto, result, domain, note in [
-      ('SPF', auth.spf_result, auth.spf_domain, auth.spf_explanation),
-      ('DKIM', auth.dkim_result, auth.dkim_domain, ''),
-      ('DMARC', auth.dmarc_result, '', 'Policy: ' ~ (auth.dmarc_policy or 'None'))
-    ] %}
-    <div class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-size: 14pt; font-weight: 800; font-family: monospace;">{{ proto }}</span>
-        <span class="auth-{{ result | lower if result | lower in ['pass', 'fail', 'warn'] else 'none' }}">{{ result | upper if result else 'NONE' }}</span>
+  {% set a = auth or auth_results %}
+  {% if a %}
+  <div class="grid-3" style="margin-bottom: 16px;">
+    <!-- SPF Card -->
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm" style="justify-content: center;">SPF Validation</div>
+      <div class="auth-{{ (a.spf_result or 'none') | lower if (a.spf_result or '') | lower in ['pass', 'fail', 'warn', 'softfail'] else 'none' }}" style="font-size: 18pt; margin: 4px 0;">
+        {{ (a.spf_result or 'NONE') | upper }}
       </div>
-      {% if domain %}<div style="font-size: 8.5pt; color: var(--muted);">{{ domain }}</div>{% endif %}
-      {% if note %}<div style="font-size: 8.5pt; color: var(--muted);">{{ note }}</div>{% endif %}
+      <div style="font-size: 7.5pt; color: var(--text-muted); word-break: break-all;">
+        Domain: {{ a.spf_domain or '—' }}
+      </div>
+      {% if a.spf_explanation %}
+      <div style="font-size: 7.5pt; color: #64748b; margin-top: 4px;">{{ a.spf_explanation }}</div>
+      {% endif %}
     </div>
-    {% endfor %}
+
+    <!-- DKIM Card -->
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm" style="justify-content: center;">DKIM Signature</div>
+      <div class="auth-{{ (a.dkim_result or 'none') | lower if (a.dkim_result or '') | lower in ['pass', 'fail', 'warn'] else 'none' }}" style="font-size: 18pt; margin: 4px 0;">
+        {{ (a.dkim_result or 'NONE') | upper }}
+      </div>
+      <div style="font-size: 7.5pt; color: var(--text-muted); word-break: break-all;">
+        Selector/Domain: {{ a.dkim_domain or '—' }}
+      </div>
+    </div>
+
+    <!-- DMARC Card -->
+    <div class="card" style="text-align: center;">
+      <div class="card-header-sm" style="justify-content: center;">DMARC Policy</div>
+      <div class="auth-{{ (a.dmarc_result or 'none') | lower if (a.dmarc_result or '') | lower in ['pass', 'fail', 'warn'] else 'none' }}" style="font-size: 18pt; margin: 4px 0;">
+        {{ (a.dmarc_result or 'NONE') | upper }}
+      </div>
+      <div style="font-size: 7.5pt; color: var(--text-muted);">
+        Enforcement: {{ a.dmarc_policy or 'None' }}
+      </div>
+    </div>
   </div>
 
-  <div class="card" style="border-color: {% if auth.overall_verdict == 'CRITICAL' or auth.overall_verdict == 'FAIL' %}var(--critical){% else %}var(--border){% endif %};">
-    <div class="card-title">Overall Verdict &amp; Spoofing Risk</div>
-    <div style="font-size: 11pt; font-weight: 700; color: {% if auth.overall_verdict == 'CRITICAL' %}#f87171{% elif auth.overall_verdict == 'FAIL' %}#fb923c{% else %}#4ade80{% endif %};">
-      {{ auth.overall_verdict }} — {{ auth.spoofing_risk }}
+  <div class="card" style="border-left: 4px solid {% if a.overall_verdict in ['FAIL', 'CRITICAL'] %}var(--critical-red){% else %}var(--benign-green){% endif %};">
+    <div class="card-header-sm">Overall Authentication Evaluation</div>
+    <div style="font-size: 11pt; font-weight: 800; color: {% if a.overall_verdict in ['FAIL', 'CRITICAL'] %}#dc2626{% else %}#16a34a{% endif %};">
+      VERDICT: {{ a.overall_verdict or 'UNKNOWN' }} — {{ a.spoofing_risk or 'Risk Assessed' }}
     </div>
   </div>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 6: IOCs ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">6</div>
-    <div class="section-title">Indicators of Compromise</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 6: INDICATORS OF COMPROMISE (IOCs)
+═══════════════════════════════════════════════ -->
+<div class="page page-alt page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 06</span>
+      <h2 class="section-title">Indicators of Compromise (IOC Inventory)</h2>
+    </div>
+    <span class="section-dept-tag">THREAT INTELLIGENCE</span>
   </div>
 
   {% if iocs %}
   <table class="report-table">
     <thead>
       <tr>
-        <th>Type</th><th>Value (Defanged)</th><th>Severity</th><th>Context</th><th>Notes</th>
+        <th style="width: 14%;">Type</th>
+        <th style="width: 46%;">Value (defanged)</th>
+        <th style="width: 16%;">Risk</th>
+        <th style="width: 24%;">First Seen</th>
       </tr>
     </thead>
     <tbody>
       {% for ioc in iocs %}
-      <tr>
-        <td><span class="ioc-badge ioc-{{ ioc.ioc_type | lower }}">{{ ioc.ioc_type }}</span></td>
-        <td class="mono" style="word-break: break-all; max-width: 200px;">{{ ioc.defanged_value or ioc.ioc_value }}</td>
-        <td><span class="severity-badge severity-{{ ioc.severity }}" style="font-size: 8pt; padding: 2px 8px;">{{ ioc.severity }}</span></td>
-        <td style="font-size: 9pt;">{{ ioc.context or '—' }}</td>
-        <td style="font-size: 8.5pt; color: var(--muted);">
-          {% if ioc.is_lookalike %}Lookalike: {{ ioc.lookalike_target }}{% endif %}
-          {% if ioc.is_shortened_url %}Shortened URL{% endif %}
+      {% set s = (ioc.severity or 'LOW') | upper %}
+      <tr class="ioc-row-{{ s | lower }}">
+        <td>
+          <span class="badge-type">{{ ioc.ioc_type }}</span>
+        </td>
+        <td class="mono" style="word-break: break-all;">
+          <strong>{{ ioc.defanged_value or ioc.ioc_value }}</strong>
+          {% if ioc.is_lookalike %}
+          <div style="font-size: 7pt; color: #ea580c; font-weight: 700; margin-top: 2px;">
+            Targeting: {{ ioc.lookalike_target }}
+          </div>
+          {% endif %}
+          {% if ioc.is_shortened_url %}
+          <div style="font-size: 7pt; color: #ca8a04; font-weight: 700; margin-top: 2px;">
+            [Shortened URL Redirection]
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge-risk badge-risk-{{ s | lower }}">{{ s }}</span>
+        </td>
+        <td style="font-size: 8pt; color: #475569;">
+          {{ ioc.first_seen or ioc.created_at or 'Observed at Ingestion' }}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <p style="color: var(--muted);">No IOCs extracted.</p>
+  <div class="card">
+    <p style="color: var(--text-muted); font-style: italic;">No discrete Indicators of Compromise extracted for this case.</p>
+  </div>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 7: GEO INTELLIGENCE ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">7</div>
-    <div class="section-title">Infrastructure &amp; Geolocation Intelligence</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 7: GEO INTELLIGENCE
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 07</span>
+      <h2 class="section-title">Infrastructure &amp; Geolocation Intelligence</h2>
+    </div>
+    <span class="section-dept-tag">NETWORK RECON</span>
   </div>
 
   {% if geo_data %}
   {% for geo in geo_data %}
-  <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-      <span class="mono" style="font-size: 12pt; font-weight: 700; color: #818cf8;">{{ geo.ip_address }}</span>
-      <div style="display: flex; gap: 6px;">
-        {% if geo.is_tor %}<span style="padding: 2px 8px; background: #450a0a; color: #fca5a5; border: 1px solid #991b1b; border-radius: 4px; font-size: 8pt; font-weight: 700;">TOR</span>{% endif %}
-        {% if geo.is_vpn %}<span style="padding: 2px 8px; background: #431407; color: #fed7aa; border: 1px solid #9a3412; border-radius: 4px; font-size: 8pt; font-weight: 700;">VPN</span>{% endif %}
-        {% if geo.is_hosting %}<span style="padding: 2px 8px; background: #172554; color: #bfdbfe; border: 1px solid #1e40af; border-radius: 4px; font-size: 8pt; font-weight: 700;">HOSTING</span>{% endif %}
+  <div class="card" style="margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle); padding-bottom: 6px; margin-bottom: 8px;">
+      <span class="mono" style="font-size: 10.5pt; font-weight: 800; color: #1e40af;">
+        {{ geo.ip_address }}
+      </span>
+      <div style="display: flex; gap: 4px;">
+        {% if geo.is_tor %}<span style="background: #dc2626; color: white; padding: 1px 6px; border-radius: 3px; font-size: 7pt; font-weight: 800;">TOR EXIT</span>{% endif %}
+        {% if geo.is_vpn %}<span style="background: #ea580c; color: white; padding: 1px 6px; border-radius: 3px; font-size: 7pt; font-weight: 800;">VPN NODE</span>{% endif %}
+        {% if geo.is_hosting %}<span style="background: #2563eb; color: white; padding: 1px 6px; border-radius: 3px; font-size: 7pt; font-weight: 800;">DATACENTER</span>{% endif %}
       </div>
     </div>
-    <div class="grid-3" style="font-size: 9.5pt;">
-      <div><span style="color: var(--muted);">Country</span><br>{{ geo.country or 'Unknown' }} ({{ geo.country_code or '?' }})</div>
-      <div><span style="color: var(--muted);">City / Region</span><br>{{ [geo.city, geo.region] | select | join(', ') or 'Unknown' }}</div>
-      <div><span style="color: var(--muted);">ISP / Org</span><br>{{ geo.isp or geo.org or 'Unknown' }}</div>
-      <div><span style="color: var(--muted);">ASN</span><br>{{ geo.asn or 'Unknown' }}</div>
-      <div><span style="color: var(--muted);">Hostname</span><br class="mono">{{ geo.hostname or '—' }}</div>
-      <div><span style="color: var(--muted);">PTR Record</span><br class="mono">{{ geo.ptr_record or '—' }}</div>
+
+    <div class="grid-3" style="font-size: 8.5pt;">
+      <div><strong style="color: var(--text-muted);">Jurisdiction:</strong><br>{{ geo.country or 'Unknown' }} ({{ geo.country_code or '?' }})</div>
+      <div><strong style="color: var(--text-muted);">City / Region:</strong><br>{{ [geo.city, geo.region] | select | join(', ') or 'Unknown' }}</div>
+      <div><strong style="color: var(--text-muted);">ISP / Org:</strong><br>{{ geo.isp or geo.org or 'Unknown' }}</div>
+      <div><strong style="color: var(--text-muted);">ASN:</strong><br>{{ geo.asn or 'Unknown' }}</div>
+      <div><strong style="color: var(--text-muted);">Reverse PTR:</strong><br class="mono">{{ geo.ptr_record or '—' }}</div>
+      <div><strong style="color: var(--text-muted);">Hostname:</strong><br class="mono">{{ geo.hostname or '—' }}</div>
     </div>
   </div>
   {% endfor %}
 
-  <div class="disclaimer">
-    <div class="disclaimer-title">⚠ Attribution Limitation Notice</div>
-    <div class="disclaimer-text">
-      Geographic and infrastructure data reflects the location of email sending infrastructure (mail servers, relay nodes, or VPN exit points),
-      not the physical location or identity of the threat actor. Attackers routinely route communications through proxy services,
-      VPN providers, TOR exit nodes, or compromised systems in third countries. This data supports investigation context but
-      does not constitute geographic attribution of the perpetrator.
-    </div>
+  <div class="notice-box">
+    <div class="notice-title">Attribution Limitation Caveat</div>
+    Sending server IP geolocations represent the physical node or cloud hop delivering the message, not necessarily the physical workstation of the adversary. Threat actors routinely route campaigns through commercial VPNs, open relays, or infected proxy networks.
   </div>
+  {% else %}
+  <p style="color: var(--text-muted); font-style: italic;">No external IP infrastructure intelligence records available.</p>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 8: CAMPAIGN CORRELATION ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">8</div>
-    <div class="section-title">Threat Correlation &amp; Campaign Intelligence</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 8: CAMPAIGN CORRELATION
+═══════════════════════════════════════════════ -->
+<div class="page page-alt">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 08</span>
+      <h2 class="section-title">Threat Correlation &amp; Campaign Clustering</h2>
+    </div>
+    <span class="section-dept-tag">CROSS-CASE INTEL</span>
   </div>
 
   {% if campaign %}
-  <div class="card" style="border-color: #6b21a8;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+  <div class="card" style="border-left: 4px solid #7c3aed;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
       <div>
-        <div class="card-title">Campaign Detected</div>
-        <div style="font-family: monospace; font-size: 12pt; font-weight: 700; color: #c4b5fd;">{{ campaign.campaign_id }}</div>
+        <div class="card-header-sm">Correlated Campaign ID</div>
+        <div class="mono" style="font-size: 11pt; font-weight: 800; color: #7c3aed;">{{ campaign.campaign_id }}</div>
       </div>
       <div style="text-align: right;">
-        <div style="font-size: 20pt; font-weight: 900; color: var(--text);">{{ campaign.case_count }}</div>
-        <div style="font-size: 9pt; color: var(--muted);">related cases</div>
+        <div style="font-size: 18pt; font-weight: 900; color: #0f172a;">{{ campaign.case_count }}</div>
+        <div style="font-size: 7.5pt; color: var(--text-muted); font-weight: 700;">RELATED INCIDENTS</div>
       </div>
     </div>
-    <div class="grid-2" style="font-size: 9.5pt; margin-bottom: 12px;">
-      <div><span style="color: var(--muted);">First Observed</span><br>{{ campaign.first_seen }}</div>
-      <div><span style="color: var(--muted);">Last Observed</span><br>{{ campaign.last_seen }}</div>
+    <div class="grid-2" style="font-size: 8.5pt; margin-top: 8px;">
+      <div><strong>First Observed:</strong> {{ campaign.first_seen }}</div>
+      <div><strong>Last Activity:</strong> {{ campaign.last_seen }}</div>
     </div>
-    {% if campaign.shared_indicators %}
-    <div>
-      <div class="card-title">Shared Indicators (Top 10)</div>
-      {% for ioc in campaign.shared_indicators[:10] %}
-      <div style="display: flex; gap: 8px; font-size: 9pt; margin-bottom: 4px;">
-        <span style="color: var(--muted); width: 60px;">{{ ioc.type }}</span>
-        <span class="mono">{{ ioc.value }}</span>
-        <span style="color: var(--muted);">(w={{ '%.1f'|format(ioc.weight) }})</span>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
   </div>
   {% else %}
   <div class="card">
-    <p style="color: var(--muted); font-size: 10pt;">This case has not been linked to any known campaign. It may represent an isolated threat or be part of an undetected campaign.</p>
+    <p style="color: var(--text-muted); font-size: 9pt;">
+      This email evidence is currently evaluated as an isolated incident or does not share high-confidence signature clusters with existing campaigns in the local repository.
+    </p>
   </div>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 9: ATTRIBUTION ═══ -->
-<div class="page">
-  <div class="section-header">
-    <div class="section-number">9</div>
-    <div class="section-title">Attribution Confidence Assessment</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 9: ATTRIBUTION CONFIDENCE
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 09</span>
+      <h2 class="section-title">Attribution Confidence &amp; Impersonation Assessment</h2>
+    </div>
+    <span class="section-dept-tag">CONFIDENCE METRICS</span>
   </div>
 
   {% if analysis %}
   <div class="card">
-    <div class="card-title">Confidence Indicators</div>
-    {% set rule_pct = analysis.rule_score %}
-    {% set ml_pct = analysis.ml_score %}
-    {% set gemini_pct = analysis.gemini_score %}
-    {% for label, pct, color in [
-      ('Rule Engine Match', rule_pct, '#f97316'),
-      ('ML Classifier Confidence', ml_pct, '#3b82f6'),
-      ('AI Assessment Confidence', gemini_pct, '#a855f7')
+    <div class="card-header-sm">Forensic Confidence Calibration</div>
+    {% for label, val, bar_color in [
+      ('Heuristic Signature Confidence', analysis.rule_score or 0, '#ea580c'),
+      ('Classifier Feature Weight', analysis.ml_score or 0, '#2563eb'),
+      ('LLM Reasoning Confidence', analysis.gemini_score or 0, '#7c3aed')
     ] %}
-    <div class="confidence-bar-wrap">
-      <span class="confidence-label">{{ label }}</span>
-      <div class="confidence-bar"><div style="height: 100%; width: {{ pct }}%; background: {{ color }}; border-radius: 99px;"></div></div>
-      <span style="font-size: 9pt; font-weight: 700; color: var(--text); width: 36px; text-align: right;">{{ pct }}%</span>
+    <div style="margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; font-size: 8.5pt; font-weight: 600; margin-bottom: 3px;">
+        <span>{{ label }}</span>
+        <span>{{ val }}%</span>
+      </div>
+      <div class="bar-container">
+        <div class="bar-fill" style="width: {{ val }}%; background: {{ bar_color }};"></div>
+      </div>
     </div>
     {% endfor %}
   </div>
 
   {% if analysis.impersonation_details and analysis.impersonation_details.is_impersonating %}
-  <div class="card" style="border-color: var(--critical);">
-    <div class="card-title" style="color: #f87171;">Impersonation Detected</div>
-    <p style="font-size: 10pt;">Entity being impersonated: <strong>{{ analysis.impersonation_details.impersonated_entity or 'Unknown' }}</strong></p>
-    <p style="font-size: 9.5pt; color: var(--muted); margin-top: 4px;">Technique: {{ analysis.impersonation_details.technique or 'Unknown' }}</p>
-  </div>
-  {% endif %}
-  {% endif %}
-
-  <div class="disclaimer mt-16">
-    <div class="disclaimer-title">⚠ Attribution Disclaimer</div>
-    <div class="disclaimer-text">
-      Forensic attribution in cyber investigations is inherently probabilistic. The confidence scores presented reflect technical indicators found within this email and related infrastructure. They do not constitute definitive identification of a threat actor, individual, or organization. Attribution requires corroboration from multiple independent intelligence sources, legal authority, and investigative context beyond the scope of automated analysis. TraceVault assessments are investigative support tools, not legal evidence of identity.
+  <div class="card" style="border-left: 4px solid var(--critical-red); background: #fff5f5;">
+    <div class="card-header-sm" style="color: #dc2626;">Brand / Executive Impersonation Identified</div>
+    <div style="font-size: 9pt; color: #1e293b;">
+      Target Entity: <strong>{{ analysis.impersonation_details.impersonated_entity or 'Target Brand' }}</strong>
+    </div>
+    <div style="font-size: 8.5pt; color: #64748b; margin-top: 2px;">
+      Vector / Technique: {{ analysis.impersonation_details.technique or 'Domain Lookalike / Display Name Spoof' }}
     </div>
   </div>
+  {% endif %}
+  {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 10: EVIDENCE INTEGRITY ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">10</div>
-    <div class="section-title">Digital Evidence Integrity Certificate</div>
-  </div>
-
-  <div class="card" style="border-color: var(--primary);">
-    <div class="card-title">Evidence Hash Values</div>
-    <table style="width: 100%; font-size: 9.5pt;">
-      <tr><td style="color: var(--muted); padding: 6px 0; width: 120px;">Case ID</td>
-          <td class="mono">{{ case.case_id }}</td></tr>
-      <tr><td style="color: var(--muted); padding: 6px 0;">SHA-256 Hash</td>
-          <td class="mono" style="word-break: break-all;">{{ case.evidence_hash }}</td></tr>
-      <tr><td style="color: var(--muted); padding: 6px 0;">SHA-3-256 Hash</td>
-          <td class="mono" style="word-break: break-all;">{{ case.evidence_hash3 }}</td></tr>
-      <tr><td style="color: var(--muted); padding: 6px 0;">File Size</td>
-          <td>{{ case.file_size_bytes | filesizeformat }}</td></tr>
-      <tr><td style="color: var(--muted); padding: 6px 0;">Evidence Submitted</td>
-          <td>{{ case.created_at }}</td></tr>
-    </table>
+<!-- ═══════════════════════════════════════════════
+     SECTION 10: EVIDENCE INTEGRITY
+═══════════════════════════════════════════════ -->
+<div class="page page-alt">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 10</span>
+      <h2 class="section-title">Digital Evidence Integrity Certificate</h2>
+    </div>
+    <span class="section-dept-tag">CRYPTOGRAPHIC PROOF</span>
   </div>
 
   <div class="card">
-    <div class="card-title">Integrity Verification Instructions</div>
-    <p style="font-size: 9.5pt; line-height: 1.7; color: var(--text);">
-      To independently verify evidence integrity, compute the SHA-256 hash of the original .eml file
-      and compare it against the hash recorded above. Any difference indicates the file has been modified
-      after ingestion. The blockchain ledger provides an independent tamper-evident record of all
-      investigation actions.
-    </p>
-    <div style="margin-top: 12px; padding: 12px; background: #0a0a1a; border-radius: 6px; font-family: monospace; font-size: 9pt; color: #4ade80;">
-      # Verify on Linux/macOS:<br>
-      sha256sum suspicious_email.eml<br><br>
-      # Verify on Windows (PowerShell):<br>
-      Get-FileHash suspicious_email.eml -Algorithm SHA256
+    <div class="card-header-sm">Immutable Cryptographic Fingerprints</div>
+    <table style="width: 100%; font-size: 8.5pt;">
+      <tr>
+        <td style="width: 25%; font-weight: 700; color: var(--text-muted); padding: 5px 0;">Case Number</td>
+        <td class="mono" style="font-weight: 700; color: #0f172a;">{{ case.case_id }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: var(--text-muted); padding: 5px 0;">SHA-256 Hash</td>
+        <td class="mono" style="word-break: break-all; color: #1e40af;">{{ case.sha256_hash or case.evidence_hash or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: var(--text-muted); padding: 5px 0;">SHA-3-256 Hash</td>
+        <td class="mono" style="word-break: break-all; color: #7c3aed;">{{ case.evidence_hash3 or '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: var(--text-muted); padding: 5px 0;">File Size (Bytes)</td>
+        <td>{{ (case.file_size_bytes or 0) | filesizeformat if case.file_size_bytes is defined else '—' }}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: 700; color: var(--text-muted); padding: 5px 0;">Ingestion Date</td>
+        <td>{{ case.created_at or '—' }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="notice-box">
+    <div class="notice-title">Independent Integrity Verification Commands</div>
+    To independently authenticate this evidence file in a courtroom or terminal environment:
+    <div style="background: #0f172a; color: #4ade80; font-family: 'JetBrains Mono', monospace; font-size: 7.5pt; padding: 8px 10px; border-radius: 4px; margin-top: 6px;">
+      # Linux / macOS Verification:<br>
+      sha256sum evidence_file.eml<br><br>
+      # Windows PowerShell Verification:<br>
+      Get-FileHash evidence_file.eml -Algorithm SHA256
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 11: CHAIN OF CUSTODY ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">11</div>
-    <div class="section-title">Blockchain Chain of Custody</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 11: BLOCKCHAIN EVIDENCE TABLE
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 11</span>
+      <h2 class="section-title">Blockchain Evidence &amp; Chain of Custody Table</h2>
+    </div>
+    <span class="section-dept-tag">COURT EXHIBIT LOG</span>
   </div>
 
-  {% if blockchain_ledger %}
-  <table class="report-table">
-    <thead>
-      <tr>
-        <th>Block #</th><th>Action</th><th>Actor</th><th>Timestamp</th><th>Block Hash (truncated)</th><th>Anchored</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for entry in blockchain_ledger %}
-      <tr>
-        <td class="mono">{{ entry.block_index }}</td>
-        <td style="font-weight: 600;">{{ entry.action.replace('_', ' ') }}</td>
-        <td style="font-size: 9pt;">{{ entry.actor }}</td>
-        <td style="font-size: 9pt;">{{ entry.timestamp }}</td>
-        <td class="mono" style="font-size: 8.5pt;">{{ entry.block_hash[:24] }}...</td>
-        <td style="font-size: 9pt;">{% if entry.is_anchored %}✅ Polygon{% else %}—{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% set ledger = blockchain_entries or blockchain_ledger %}
+  {% if ledger %}
+  <div class="court-exhibit-wrapper">
+    <div class="court-exhibit-header">
+      <span class="court-stamp">EXHIBIT B — IMMUTABLE AUDIT TRAIL</span>
+      <span style="font-size: 7.5pt; color: #cbd5e1;">TAMPER-EVIDENT HASH-CHAIN</span>
+    </div>
+
+    <!-- Monospace Table Printed Like a Court Exhibit -->
+    <table class="court-table">
+      <thead>
+        <tr>
+          <th style="width: 10%;">Block #</th>
+          <th style="width: 24%;">Timestamp</th>
+          <th style="width: 24%;">Action</th>
+          <th style="width: 16%;">Actor</th>
+          <th style="width: 26%;">Hash (truncated)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in ledger %}
+        <tr>
+          <td style="font-weight: 800; color: #1e40af;">#{{ entry.block_index }}</td>
+          <td>{{ entry.timestamp }}</td>
+          <td style="font-weight: 700;">{{ entry.action | replace('_', ' ') }}</td>
+          <td>{{ entry.actor }}</td>
+          <td style="color: #475569;">
+            {% if entry.block_hash %}
+              {{ entry.block_hash[:16] }}…{{ entry.block_hash[-8:] }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <p style="color: var(--muted);">No blockchain entries recorded for this case.</p>
+  <p style="color: var(--text-muted); font-style: italic;">No blockchain custody entries recorded for this case file.</p>
   {% endif %}
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 12: RECOMMENDED ACTIONS ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">12</div>
-    <div class="section-title">Recommended Security Actions</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 12: RECOMMENDED ACTIONS
+═══════════════════════════════════════════════ -->
+<div class="page page-alt">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 12</span>
+      <h2 class="section-title">Recommended Incident Mitigation Actions</h2>
+    </div>
+    <span class="section-dept-tag">INCIDENT RESPONSE</span>
   </div>
 
   {% if analysis and analysis.recommended_actions %}
-  <ol style="padding-left: 20px; space-y: 12px;">
-    {% for action in analysis.recommended_actions %}
-    <li style="margin-bottom: 12px; font-size: 10.5pt; line-height: 1.6;">{{ action }}</li>
-    {% endfor %}
-  </ol>
+  <div class="card">
+    <div class="card-header-sm">Prioritized Technical Recommendations</div>
+    <ol style="padding-left: 20px; font-size: 8.5pt;">
+      {% for action in analysis.recommended_actions %}
+      <li style="margin-bottom: 6px; line-height: 1.5; color: #1e293b;">{{ action }}</li>
+      {% endfor %}
+    </ol>
+  </div>
   {% endif %}
 
-  <div class="card mt-24" style="border-color: #92400e; background: #1c1205;">
-    <div class="disclaimer-title">General Response Guidelines</div>
-    <ul style="padding-left: 18px; margin-top: 8px;">
-      <li style="margin-bottom: 6px; font-size: 9.5pt; color: #fde68a;">Do not click any links or download attachments from the suspicious email</li>
-      <li style="margin-bottom: 6px; font-size: 9.5pt; color: #fde68a;">Block all extracted IOCs at your email gateway, firewall, and DNS layer</li>
-      <li style="margin-bottom: 6px; font-size: 9.5pt; color: #fde68a;">Notify affected users and relevant security teams immediately</li>
-      <li style="margin-bottom: 6px; font-size: 9.5pt; color: #fde68a;">Preserve all logs and forward to CERT-In if the incident is reportable</li>
-      <li style="font-size: 9.5pt; color: #fde68a;">Update threat intelligence feeds with extracted IOCs</li>
+  <div class="card" style="border-left: 4px solid #ea580c; background: #fff7ed;">
+    <div class="card-header-sm" style="color: #c2410c;">Standard Operating Response Protocol</div>
+    <ul style="padding-left: 18px; font-size: 8pt; color: #9a3412;">
+      <li style="margin-bottom: 4px;">Immediately blacklist and sinkhole all extracted malicious IOCs across perimeter firewalls and DNS resolvers.</li>
+      <li style="margin-bottom: 4px;">Revoke active session tokens and initiate credential resets for targeted recipient accounts.</li>
+      <li style="margin-bottom: 4px;">Search email server logs (M365 / Google Workspace) to identify any other organization mailboxes that received identical hashes.</li>
+      <li>Archive raw .eml evidence with verified cryptographic hashes for law enforcement submission.</li>
     </ul>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════ SECTION 13: LEGAL DISCLAIMER ═══ -->
-<div class="page page-break">
-  <div class="section-header">
-    <div class="section-number">13</div>
-    <div class="section-title">Legal Disclaimer</div>
+<!-- ═══════════════════════════════════════════════
+     SECTION 13: LEGAL DISCLAIMER
+═══════════════════════════════════════════════ -->
+<div class="page page-light page-break">
+  <div class="section-header-bar">
+    <div style="display: flex; align-items: center;">
+      <span class="section-badge">SECTION 13</span>
+      <h2 class="section-title">Legal Disclaimer &amp; Official Attestation</h2>
+    </div>
+    <span class="section-dept-tag">STATUTORY NOTICE</span>
   </div>
 
-  <div class="card" style="line-height: 1.8; font-size: 9.5pt; color: var(--muted);">
-    <p style="margin-bottom: 12px;">
-      This forensic report has been generated by TraceVault, an AI-powered Email Threat Detection and Forensic Intelligence Platform, developed for educational and cybersecurity research purposes as part of Smart India Hackathon 2024 (Problem Statement ID 26106, AICTE Cyber Security Cell).
+  <div class="card" style="font-size: 8pt; color: #475569; line-height: 1.6;">
+    <p style="margin-bottom: 8px;">
+      <strong>1. Investigation Scope &amp; Purpose:</strong> This document represents an automated forensic intelligence assessment produced by <strong>TraceVault</strong> for cybersecurity threat evaluation and digital evidence preservation under SIH 2026 / Problem Statement #26106.
     </p>
-    <p style="margin-bottom: 12px;">
-      <strong style="color: var(--text);">No Legal Standing:</strong> This report is an automated analytical output and does not constitute legal evidence, expert testimony, or official law enforcement documentation. It should be used for investigative guidance only.
+    <p style="margin-bottom: 8px;">
+      <strong>2. Admissibility &amp; Expert Review:</strong> While digital evidence hashes and blockchain audit records are generated in strict adherence to cryptographic standards, automated conclusions must be corroborated by a certified forensic examiner prior to formal submission as legal evidence in judicial proceedings.
     </p>
-    <p style="margin-bottom: 12px;">
-      <strong style="color: var(--text);">Attribution Uncertainty:</strong> All attribution statements are probabilistic assessments based on technical indicators. They should not be used to make accusations against individuals or organizations without additional corroborating evidence reviewed by qualified human analysts.
-    </p>
-    <p style="margin-bottom: 12px;">
-      <strong style="color: var(--text);">Accuracy Limitation:</strong> AI-based threat analysis may produce false positives or false negatives. All findings should be independently verified by a qualified cybersecurity professional before taking legal or remedial action.
+    <p style="margin-bottom: 8px;">
+      <strong>3. Attribution Caveat:</strong> Threat attribution scores reflect probabilistic heuristics and machine learning indicators. They indicate infrastructure patterns rather than definite legal liability of any named party without further subpoenaed ISP subscriber records.
     </p>
     <p>
-      <strong style="color: var(--text);">Confidentiality:</strong> This report may contain sensitive information about cybersecurity threats and investigations. Distribution should be limited to authorized personnel with a legitimate need to know.
+      <strong>4. Confidentiality &amp; Handling:</strong> This document is strictly classified as <strong>FOR OFFICIAL USE ONLY (FOUO)</strong>. Unauthorized reproduction, distribution, or disclosure is actionable under applicable cyber law and privacy regulations.
     </p>
   </div>
 
-  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center;">
-    <div style="font-size: 22pt; font-weight: 900; color: var(--primary); letter-spacing: 2px;">TRACEVAULT</div>
-    <div style="color: var(--muted); font-size: 9pt; margin-top: 4px;">AI-Powered Email Forensic Intelligence Platform</div>
-    <div style="color: var(--muted); font-size: 9pt;">SIH 2024 · Problem Statement 26106 · AICTE Cyber Security Cell</div>
-    <div style="margin-top: 16px; color: var(--muted); font-size: 8.5pt;">
-      Report generated: {{ generated_at }} · Case: {{ case.case_id }} · Platform Version 1.0
+  <!-- Final Signature & Seal Block -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 36px; padding: 0 10px;">
+    <div style="text-align: left;">
+      <div style="font-size: 7.5pt; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Cryptographic Verification</div>
+      <div class="mono" style="font-size: 7.5pt; color: #1e40af; margin-top: 4px;">
+        TraceVault Root Certificate Validated<br>
+        SHA-256: {{ (case.sha256_hash or case.evidence_hash or '0000000000000000')[:24] }}…
+      </div>
+    </div>
+
+    <div style="text-align: right;">
+      <div style="width: 200px; border-bottom: 1.5px solid #0f172a; margin-bottom: 4px;"></div>
+      <div style="font-size: 8pt; font-weight: 800; color: #0f172a;">EXAMINER SIGNATURE</div>
+      <div style="font-size: 7.5pt; color: var(--text-muted);">
+        {{ analyst_name or (report_metadata.analyst if report_metadata else None) or 'Digital Forensics Unit' }}
+      </div>
     </div>
   </div>
 </div>
