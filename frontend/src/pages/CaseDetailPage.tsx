@@ -894,8 +894,10 @@ export default function CaseDetailPage() {
     queryKey: ['case', caseId],
     queryFn: () => casesAPI.get(caseId!),
     enabled: !!caseId,
-    refetchInterval: (data) =>
-      data?.status === 'ANALYZING' || data?.status === 'PENDING' ? 3000 : false,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      return status === 'ANALYZING' || status === 'PENDING' ? 3000 : false
+    },
   })
 
   const { data: analysis } = useQuery<AnalysisResult>({
