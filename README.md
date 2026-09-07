@@ -6,7 +6,7 @@ TraceVault is a production-grade, AI-powered email threat detection and forensic
 
 ---
 
-## 🏆 Key Features
+## 🏆Key Features
 
 | Feature | Description |
 |---|---|
@@ -328,8 +328,6 @@ Every investigation action is recorded in a tamper-evident hash-chain:
 | **Visualization** | Cytoscape.js (threat graph), React-Leaflet (geo map), Recharts |
 | **Streaming** | Server-Sent Events (SSE) |
 | **Containerization** | Docker, Docker Compose, nginx |
-
----
 
 ## 👨‍💻 Development Notes
 
