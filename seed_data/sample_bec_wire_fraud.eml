@@ -1,0 +1,50 @@
+Return-Path: <cfo@acme-corp.com.billing.invoicepro247.ru>
+Received: from mail-eu1.invoicepro247.ru (mail-eu1.invoicepro247.ru [91.108.56.128])
+	by mail.targethospital.org (Postfix) with ESMTPS id F1E2D3C4B5A;
+	Wed, 24 Jan 2024 14:07:33 +0000 (UTC)
+Received: from workstation-4 ([10.0.1.45])
+	by mail-eu1.invoicepro247.ru with SMTP id q7w2x3y4;
+	Wed, 24 Jan 2024 14:07:21 +0000
+Authentication-Results: mail.targethospital.org;
+	spf=neutral (sender IP 91.108.56.128 is not listed for acme-corp.com);
+	dkim=none;
+	dmarc=fail (p=none)
+From: "Michael Chen - CFO" <cfo@acme-corp.com>
+To: accounts@targethospital.org
+CC: finance@targethospital.org
+Reply-To: michael.chen.cfo.acme@gmail.com
+Return-Path: <cfo@acme-corp.com.billing.invoicepro247.ru>
+Subject: Urgent Wire Transfer Authorization - Q4 Vendor Payment
+Date: Wed, 24 Jan 2024 14:07:15 +0000
+Message-ID: <CFO-20240124-14072@workstation-4>
+X-Mailer: Outlook for Windows
+X-Priority: 1 (Highest)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+Hi Team,
+
+I need you to process an urgent wire transfer TODAY. I am currently traveling and cannot discuss by phone.
+
+Our vendor Medical Supplies International has changed their banking details. Please update your records and process the outstanding Q4 invoice immediately.
+
+NEW BANKING DETAILS:
+  Beneficiary: Medical Supplies International Holdings Ltd
+  Bank: Eastern European Commercial Bank
+  SWIFT: EECBBG2X
+  IBAN: BG80BNBG96611020345678
+  Account: 1020345678
+  Amount: $284,500.00 USD
+
+Reference: INV-2024-Q4-7732
+
+This payment is time-sensitive - vendor has threatened to halt all supply agreements if not received by end of business today. I have already approved this from my end. Process immediately and send me confirmation at my personal email: michael.chen.cfo@protonmail.com
+
+Do not escalate internally - I will explain the situation when I return.
+
+Best,
+Michael Chen
+Chief Financial Officer, Acme Corp
+Direct: +1-650-555-0198
+
+CONFIDENTIAL: This email and any attachments are for the exclusive and confidential use of the intended recipient. If you have received this in error, please do not read, distribute or take action in reliance upon this message.

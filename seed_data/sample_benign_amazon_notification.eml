@@ -1,0 +1,42 @@
+Return-Path: <noreply@amazon.com>
+Received: from mail-out.amazon.com (mail-out.amazon.com [207.171.188.174])
+	by mail.recipient-server.com (Postfix) with ESMTPS id 9A0B1C2D3E4;
+	Thu, 25 Jan 2024 16:30:02 +0000 (UTC)
+Authentication-Results: mail.recipient-server.com;
+	spf=pass (sender IP is 207.171.188.174) smtp.mailfrom=amazon.com;
+	dkim=pass header.i=@amazon.com;
+	dmarc=pass (p=quarantine) header.from=amazon.com
+From: "Amazon.com" <noreply@amazon.com>
+To: customer@recipient-server.com
+Subject: Your Amazon order #112-9876543-0123456 has shipped
+Date: Thu, 25 Jan 2024 16:29:58 +0000
+Message-ID: <20240125162958.amazon-order@mail-out.amazon.com>
+X-Mailer: Amazon SES
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<div style="max-width: 680px; margin: 0 auto; background: #fff;">
+  <div style="background: #232f3e; padding: 14px 20px;">
+    <span style="color: #ff9900; font-size: 22px; font-weight: bold;">amazon</span>
+  </div>
+  <div style="padding: 24px;">
+    <h2>Your order is on its way!</h2>
+    <p>Your Amazon order has shipped. Here are the details:</p>
+    <table style="border: 1px solid #ddd; padding: 12px; width: 100%;">
+      <tr><td><strong>Order Number:</strong></td><td>#112-9876543-0123456</td></tr>
+      <tr><td><strong>Item:</strong></td><td>Echo Dot (5th Gen) - Smart Speaker</td></tr>
+      <tr><td><strong>Estimated Delivery:</strong></td><td>January 27, 2024</td></tr>
+      <tr><td><strong>Carrier:</strong></td><td>Amazon Logistics</td></tr>
+    </table>
+    <p>Track your package: <a href="https://www.amazon.com/progress-tracker/package/ref=ppx_od_dt_b_track_package?_encoding=UTF8&from=gp&orderId=112-9876543-0123456">Click here to track</a></p>
+    <p>Thank you for shopping with Amazon.</p>
+  </div>
+  <div style="background: #f3f3f3; padding: 12px 20px; font-size: 12px; color: #777;">
+    This is an automated message. Please do not reply. | Amazon.com · 410 Terry Ave N, Seattle, WA 98109
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 213 31% 91%;
+    --card: 222 47% 14%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 226 71% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 47% 18%;
+    --secondary-foreground: 213 31% 91%;
+    --muted: 222 47% 18%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 226 71% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 47% 20%;
+    --input: 222 47% 18%;
+    --ring: 226 71% 55%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-secondary;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground rounded-full;
+  }
+}
+
+@layer components {
+  .threat-score-critical { @apply text-red-500; }
+  .threat-score-high { @apply text-orange-500; }
+  .threat-score-medium { @apply text-yellow-500; }
+  .threat-score-low { @apply text-blue-500; }
+  .threat-score-benign { @apply text-green-500; }
+
+  .badge-critical { @apply bg-red-600 text-white; }
+  .badge-high { @apply bg-orange-600 text-white; }
+  .badge-medium { @apply bg-yellow-600 text-white; }
+  .badge-low { @apply bg-blue-600 text-white; }
+  .badge-benign { @apply bg-green-600 text-white; }
+
+  .glass-card {
+    @apply bg-card border border-border rounded-xl p-4 shadow-lg backdrop-blur-sm;
+  }
+
+  .hash-display {
+    @apply font-mono text-xs text-muted-foreground bg-secondary px-2 py-1 rounded break-all;
+  }
+}
+
+/* Cytoscape container */
+.cytoscape-container {
+  width: 100%;
+  height: 500px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Leaflet map override for dark theme */
+.leaflet-container {
+  background: #1a2744;
+  border-radius: 0.5rem;
+}
+
+/* SSE progress animation */
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.progress-active {
+  animation: progress-pulse 1.5s ease-in-out infinite;
+}
+
+/* Network graph */
+.graph-tooltip {
+  @apply absolute z-50 bg-card border border-border rounded-lg p-3 shadow-xl text-sm;
+  pointer-events: none;
+}

@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tracevault_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tracevault
+      POSTGRES_USER: tracevault
+      POSTGRES_PASSWORD: tracevault_secure_2024
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tracevault_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracevault -d tracevault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: tracevault_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - tracevault_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tracevault_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+      - ./backend/templates:/app/templates
+      - evidence_store:/app/evidence_store
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tracevault:tracevault_secure_2024@postgres:5432/tracevault
+      SYNC_DATABASE_URL: postgresql://tracevault:tracevault_secure_2024@postgres:5432/tracevault
+      REDIS_URL: redis://redis:6379/0
+    networks:
+      - tracevault_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tracevault_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    networks:
+      - tracevault_network
+
+networks:
+  tracevault_network:
+    driver: bridge
+    name: tracevault_network
+
+volumes:
+  postgres_data:
+    name: tracevault_postgres_data
+  redis_data:
+    name: tracevault_redis_data
+  evidence_store:
+    name: tracevault_evidence_store

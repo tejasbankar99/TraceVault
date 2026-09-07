@@ -1,0 +1,48 @@
+Return-Path: <noreply-security@paypa1-secure.com>
+Received: from mail.paypa1-secure.com (mail.paypa1-secure.com [185.234.219.47])
+	by mx.victim-company.com (Postfix) with ESMTP id A1B2C3D4E5F;
+	Mon, 15 Jan 2024 09:23:14 +0000 (UTC)
+Received: from smtp-relay.evil-hosting.net ([103.21.244.10])
+	by mail.paypa1-secure.com with ESMTP id b7x2p4q1;
+	Mon, 15 Jan 2024 09:22:58 +0000
+Authentication-Results: mx.victim-company.com;
+	spf=fail (sender IP is 185.234.219.47; does not match paypal.com) smtp.from=noreply-security@paypa1-secure.com;
+	dkim=fail reason="signature verification failed";
+	dmarc=fail (p=reject) header.from=paypal.com
+From: "PayPal Security Team" <noreply-security@paypa1-secure.com>
+To: victim@victim-company.com
+Reply-To: support@paypa1-secure.com
+Subject: [URGENT] Your PayPal account has been compromised - Immediate action required
+Date: Mon, 15 Jan 2024 09:22:55 +0000
+Message-ID: <20240115092255.9A8B7C6D@paypa1-secure.com>
+X-Mailer: Microsoft Outlook 16.0
+X-Originating-IP: 185.234.219.47
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<html>
+<body style="font-family: Arial, sans-serif; color: #333;">
+<div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px;">
+  <div style="background: #003087; padding: 15px; text-align: center;">
+    <h1 style="color: white; font-size: 24px;">PayPal</h1>
+  </div>
+  <div style="padding: 20px;">
+    <h2 style="color: #c00;">Your account has been limited</h2>
+    <p>Dear Customer,</p>
+    <p>We have detected <strong>unusual login activity</strong> on your PayPal account from an unrecognized device in <strong>Russia</strong>. To protect your account, we have temporarily limited your access.</p>
+    <p><strong>IMPORTANT:</strong> You must verify your identity within <strong>24 hours</strong> or your account will be permanently suspended and your funds frozen.</p>
+    <p>Please click the link below to restore your account access:</p>
+    <div style="text-align: center; margin: 20px 0;">
+      <a href="http://paypa1-secure.com/restore?token=eyJhbGciOiJIUzI1NiJ9.restore&redirect=http://185.234.219.47/phish/collect.php"
+         style="background: #0070ba; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+        Restore Account Access Now
+      </a>
+    </div>
+    <p style="color: #999; font-size: 12px;">If you did not receive this email, please <a href="http://paypa1-secure.com/ignore">click here</a>.</p>
+    <p>This is an automated message. Do not reply to this email.</p>
+    <p>PayPal Security Team<br>PayPal, Inc. | 2211 North First Street, San Jose, CA</p>
+  </div>
+</div>
+</body>
+</html>

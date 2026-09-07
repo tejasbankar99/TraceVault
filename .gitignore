@@ -1,0 +1,65 @@
+# ── Python ──────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+
+# ── Virtual environments ─────
+venv/
+env/
+.venv/
+.env.local
+
+# ── Environment secrets ──────
+backend/.env
+frontend/.env
+.env
+
+# ── Evidence & reports ───────
+backend/evidence/
+backend/reports/
+evidence/
+
+# ── Database ─────────────────
+*.db
+*.sqlite3
+
+# ── Node.js ──────────────────
+node_modules/
+frontend/dist/
+frontend/.cache/
+
+# ── IDE ──────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── OS ───────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Docker ───────────────────
+docker-compose.override.yml
+
+# ── Logs ─────────────────────
+*.log
+logs/
+
+# ── ML models ────────────────
+*.pkl
+*.joblib
+backend/app/ml_models/
+
+# ── Alembic local ────────────
+backend/migrations/versions/__pycache__/
