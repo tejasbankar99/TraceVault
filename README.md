@@ -1,6 +1,6 @@
 # 🛡️ TraceVault — AI-Powered Email Threat Detection & Forensic Intelligence Platform
 
-> **SIH 2024 · Problem Statement ID 26106 · AICTE Cyber Security Cell**
+> **SIH 2026 · Problem Statement ID 26106 · AICTE Cyber Security Cell**
 
 TraceVault is a production-grade, AI-powered email threat detection and forensic intelligence platform. It enables security analysts to investigate suspicious emails from evidence preservation through to court-ready forensic reports — with full blockchain chain of custody, Gemini AI analysis, and real-time investigation dashboards.
 
