@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, ShieldPlus, GitFork,
   LogOut, User, ChevronRight, Shield, Menu, X
@@ -14,9 +14,19 @@ const navItems = [
   { to: '/campaigns', icon: GitFork,         label: 'Campaigns' },
 ]
 
+function getPageTitle(pathname: string): string {
+  if (pathname === '/dashboard') return 'Dashboard'
+  if (pathname === '/cases/new') return 'New Investigation'
+  if (pathname.startsWith('/cases/')) return 'Case Detail'
+  if (pathname === '/cases') return 'Investigations'
+  if (pathname === '/campaigns') return 'Campaign Correlation'
+  return 'TraceVault'
+}
+
 export default function Layout() {
   const { user, clearAuth } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const handleLogout = () => {
@@ -109,8 +119,9 @@ export default function Layout() {
       <main className="flex-1 overflow-auto">
         {/* Top bar */}
         <div className="sticky top-0 z-10 h-14 border-b border-border bg-card/80 backdrop-blur-sm flex items-center px-6 gap-2">
-          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">TraceVault</span>
+          <span className="text-xs text-muted-foreground">TraceVault</span>
+          <ChevronRight className="w-3 h-3 text-muted-foreground" />
+          <span className="text-sm font-medium text-foreground">{getPageTitle(location.pathname)}</span>
           <div className="ml-auto flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-green-950 border border-green-800">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
