@@ -83,6 +83,11 @@
   border-radius: 0.5rem;
 }
 
+/* Dark filter applied to OSM tiles — free, no API key needed */
+.osm-dark-filter {
+  filter: invert(100%) hue-rotate(180deg) brightness(90%) contrast(85%) saturate(0.8);
+}
+
 /* SSE progress animation */
 @keyframes progress-pulse {
   0%, 100% { opacity: 1; }

@@ -39,10 +39,12 @@ export interface Case {
   created_at: string
   updated_at: string
   created_by: string
-  email_headers?: EmailHeaders
+  subject?: string | null
+  // CaseDetailResponse returns these as arrays
+  email_headers?: EmailHeaders[]
   relay_hops?: RelayHop[]
-  auth_result?: AuthResult
-  analysis_result?: AnalysisResult
+  auth_results?: AuthResult[]
+  analysis_results?: AnalysisResult[]
   iocs?: IOC[]
   geo_intelligence?: GeoIntelligence[]
   blockchain_ledger?: BlockchainEntry[]
@@ -154,10 +156,11 @@ export interface IOC {
 }
 
 export interface IOCListResponse {
-  iocs: IOC[]
+  items: IOC[]
   total: number
   page: number
-  per_page: number
+  page_size: number
+  total_pages: number
 }
 
 // ── Geo Intelligence ─────────────────────────────────────────
@@ -247,6 +250,7 @@ export interface DashboardStats {
   chain_integrity: boolean
   recent_cases: RecentCaseSummary[]
   threat_trend: Array<{ date: string; count: number }>
+  avg_threat_score?: number
 }
 
 // ── Graph ────────────────────────────────────────────────────

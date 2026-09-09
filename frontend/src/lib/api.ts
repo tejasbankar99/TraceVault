@@ -100,7 +100,7 @@ export const analysisAPI = {
   },
 
   get: async (caseId: string): Promise<AnalysisResult> => {
-    const res = await apiClient.get<AnalysisResult>(`/analysis/${caseId}`)
+    const res = await apiClient.get<AnalysisResult>(`/analysis/${caseId}/analysis`)
     return res.data
   },
 
@@ -159,7 +159,7 @@ export const iocsAPI = {
 
   getForCase: async (caseId: string): Promise<IOC[]> => {
     const res = await apiClient.get<IOCListResponse>('/iocs', { params: { case_id: caseId, per_page: 200 } })
-    return res.data.iocs ?? []
+    return res.data.items ?? []
   },
 
   search: async (q: string): Promise<IOC[]> => {
@@ -230,11 +230,8 @@ export const reportsAPI = {
 // ── Geo API ──────────────────────────────────────────────────
 export const geoAPI = {
   getForCase: async (caseId: string): Promise<GeoIntelligence[]> => {
-    // Geo data comes back as part of the full case detail — no separate endpoint
-    const res = await apiClient.get<{ geo_intelligence: GeoIntelligence[] }>(
-      `/analysis/${caseId}/analysis`
-    )
-    return res.data?.geo_intelligence ?? []
+    const res = await apiClient.get<GeoIntelligence[]>(`/analysis/${caseId}/geo`)
+    return res.data ?? []
   },
 }
 
