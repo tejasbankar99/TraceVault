@@ -6,20 +6,20 @@ TraceVault is a production-grade, AI-powered email threat detection and forensic
 
 ---
 
-## 🏆Key Features
+## 🏆 Key Features
 
 | Feature | Description |
 |---|---|
-| **Digital Evidence Preservation** | SHA-256 + SHA-3-256 hash, unique Case ID (`TV-YYYYMMDD-XXXXXXXX`), integrity verification |
-| **AI Threat Detection** | 3-layer scoring: rule engine + scikit-learn ML + Gemini 2.0 Flash LLM |
-| **Header Forensics** | Full relay chain analysis, SPF/DKIM/DMARC validation, spoofing detection, RFC violation detection |
-| **IOC Extraction** | IPs, domains, URLs (with redirect following), email addresses, file hashes, lookalike domains |
-| **Geo Intelligence** | IP geolocation, ISP/ASN/WHOIS, VPN/TOR/hosting classification, DNS records |
-| **Threat Correlation** | NetworkX IOC graph, campaign detection across cases, shared indicator analysis |
-| **Blockchain Custody** | SHA-256 hash-chain ledger + optional Polygon Amoy testnet anchoring |
-| **Forensic PDF Reports** | 13-section Jinja2 + WeasyPrint reports with evidence certificate |
-| **Real-time SSE** | Live analysis progress streaming via Server-Sent Events |
-| **Investigation Dashboard** | React + Cytoscape.js + Leaflet — threat graph, geo map, relay path, chain of custody |
+| **Digital Evidence Preservation** | SHA-256 + SHA-3-256 hash, unique Case ID (`TV-YYYYMMDD-XXXXXXXX`), cryptographic integrity verification |
+| **AI Threat Detection** | 3-layer scoring: rule engine + scikit-learn ML + Gemini 2.0 Flash LLM with multi-agent orchestration |
+| **Header Forensics** | Full relay chain analysis, SPF/DKIM/DMARC validation, cloud ESP spoofing checks, RFC violation detection |
+| **IOC Extraction** | IPs, domains, URLs (with redirect following), email addresses, file hashes, adaptive lookalike domain detection |
+| **Geo Intelligence & Mapping** | IP geolocation, ISP/ASN/WHOIS, domain origin vs outbound MTA routing, Leaflet dark map, VPN/TOR/Proxy detection |
+| **Threat Correlation** | NetworkX IOC graph, campaign detection across cases, shared indicator clustering |
+| **Blockchain Custody** | Tamper-evident SHA-256 hash-chain ledger + optional Polygon Amoy testnet anchoring |
+| **Forensic PDF Reports** | 13-section Jinja2 + WeasyPrint reports with evidence certificates and in-browser HTML preview |
+| **Real-time SSE** | Live 9-stage analysis progress streaming via Server-Sent Events |
+| **Investigation Dashboard** | React 18 + Cytoscape.js + Leaflet — real-time risk posture gauge, threat graph, geo map, relay path, chain of custody |
 
 ---
 
@@ -54,39 +54,50 @@ TraceVault is a production-grade, AI-powered email threat detection and forensic
 - Docker Desktop installed and running
 - Google Gemini API key (free at [ai.google.dev](https://ai.google.dev))
 
-### 1. Set up environment
-```bash
-cd d:\00.Projects\TraceVault
+### Option A: One-Click Launcher (Windows PowerShell)
+Run the built-in launcher script from the project root:
+```powershell
+.\start.ps1
+```
+This script checks Docker availability, starts all containers, waits for health checks, displays service URLs, and opens your browser directly to the dashboard.
 
-# Copy env template and add your keys
+---
+
+### Option B: Manual Setup
+
+#### 1. Set up environment
+```bash
+# Copy env template
 copy backend\.env.example backend\.env
 ```
 
-Edit `backend/.env` and set:
+Edit `backend/.env` and configure:
 ```env
 GOOGLE_API_KEY=your_gemini_api_key_here
-SECRET_KEY=run_python_-c_"import_secrets;print(secrets.token_hex(32))"
-JWT_SECRET_KEY=another_random_64_char_hex
+SECRET_KEY=your_random_secret_key_at_least_32_characters
 ```
 
-### 2. Launch all services
+#### 2. Launch all services
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 This starts:
-- **PostgreSQL 16** on port 5432
-- **Redis 7** on port 6379
-- **Backend API** on port 8000
-- **Frontend** on port 3000 (or 80)
+- **PostgreSQL 16** on port `5432`
+- **Redis 7** on port `6379`
+- **Backend API** on port `8000`
+- **Frontend** on port `3000`
 
-### 3. Create database tables
+#### 3. Run database tables migration (if needed)
+Database tables are automatically initialized on startup, but you can also run:
 ```bash
 docker compose exec backend alembic upgrade head
 ```
 
-### 4. Open the platform
-→ **http://localhost:3000**
+#### 4. Access the platform
+- **Dashboard:** [http://localhost:3000](http://localhost:3000)
+- **API Documentation (Swagger):** [http://localhost:8000/api/docs](http://localhost:8000/api/docs)
+- **API Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
 
 Register an analyst account, then upload one of the sample `.eml` files from `seed_data/`.
 
@@ -111,7 +122,7 @@ copy .env.example .env
 # Edit .env with your keys
 
 # Start PostgreSQL and Redis (can use Docker for just these)
-docker run -d --name pg -e POSTGRES_PASSWORD=tracevault_secret -e POSTGRES_USER=tracevault -e POSTGRES_DB=tracevault -p 5432:5432 postgres:16-alpine
+docker run -d --name pg -e POSTGRES_PASSWORD=tracevault_secure_2024 -e POSTGRES_USER=tracevault -e POSTGRES_DB=tracevault -p 5432:5432 postgres:16-alpine
 docker run -d --name redis -p 6379:6379 redis:7-alpine
 
 # Run migrations
@@ -127,7 +138,7 @@ cd frontend
 npm install
 npm run dev
 ```
-→ Frontend at **http://localhost:3000**
+→ Frontend at **http://localhost:3000** (proxies `/api` requests to port 8000).
 
 ---
 
@@ -155,8 +166,9 @@ npm run dev
 
 ```
 TraceVault/
-├── docker-compose.yml            # All services orchestration
-├── seed_data/                    # Sample .eml files for testing
+├── start.ps1                     # Windows quick launcher script
+├── docker-compose.yml            # Container orchestration (Postgres, Redis, Backend, Frontend)
+├── seed_data/                    # Sample .eml forensic test emails
 │   ├── sample_paypal_phishing.eml
 │   ├── sample_bec_wire_fraud.eml
 │   ├── sample_m365_credential_theft.eml
@@ -167,20 +179,21 @@ TraceVault/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── alembic.ini
-│   ├── .env                      # ← Your config goes here
+│   ├── .env                      # Local environment configuration
 │   ├── templates/
 │   │   └── forensic_report.html  # 13-section PDF template
 │   ├── migrations/
 │   │   └── versions/001_initial_schema.py
 │   └── app/
-│       ├── main.py               # FastAPI app, CORS, SSE, routers
+│       ├── main.py               # FastAPI entry point, CORS, routers & lifecycle
 │       ├── config.py             # Pydantic Settings
-│       ├── database.py           # Async SQLAlchemy + Redis
-│       ├── models/               # SQLAlchemy ORM models (7 files)
-│       ├── schemas/              # Pydantic v2 schemas (6 files)
-│       ├── api/v1/               # REST endpoints (9 route files)
-│       ├── services/             # Core business logic (10 services)
-│       └── utils/                # Helpers (4 files)
+│       ├── database.py           # Async SQLAlchemy engine + Redis client
+│       ├── models/               # SQLAlchemy ORM models (8 models: case, analysis, ioc, geo, blockchain, etc.)
+│       ├── schemas/              # Pydantic v2 schemas (10 schemas: geo, case, stats, ioc, report, etc.)
+│       ├── api/v1/               # REST API endpoints (auth, cases, analysis, iocs, blockchain, reports, stats, graph, campaigns)
+│       ├── services/             # Core forensics and intelligence services (14 services)
+│       │   └── agents/           # Multi-agent analysis modules (header_agent, ioc_agent)
+│       └── utils/                # Helper utilities (lookalike, defang, hash verification)
 │
 └── frontend/
     ├── Dockerfile
@@ -191,24 +204,25 @@ TraceVault/
     └── src/
         ├── main.tsx
         ├── App.tsx
-        ├── types/index.ts        # All TypeScript interfaces
+        ├── index.css             # Dark theme & dark-mode OSM tile filters
+        ├── types/index.ts        # TypeScript interfaces
         ├── lib/
-        │   ├── api.ts            # Axios client + all API functions
-        │   └── utils.ts          # Helpers + severity colors
+        │   ├── api.ts            # Axios client & API queries
+        │   └── utils.ts          # Formatting & styling helpers
         ├── stores/
-        │   └── authStore.ts      # Zustand JWT store
+        │   └── authStore.ts      # Zustand JWT state store
         ├── pages/
         │   ├── LoginPage.tsx
-        │   ├── DashboardPage.tsx
-        │   ├── CasesPage.tsx
-        │   ├── UploadPage.tsx    # Drag-drop + SSE progress
-        │   ├── CaseDetailPage.tsx # 8-tab investigation view
-        │   └── CampaignsPage.tsx
+        │   ├── DashboardPage.tsx # Fleet analytics & Threat Environment Gauge
+        │   ├── CasesPage.tsx     # Investigation case inventory
+        │   ├── UploadPage.tsx    # Evidence submission & live SSE progress
+        │   ├── CaseDetailPage.tsx# 8-tab deep forensic inspection view
+        │   └── CampaignsPage.tsx # Correlated threat campaigns
         └── components/
             ├── layout/Layout.tsx
             └── investigation/
-                ├── ThreatGraph.tsx  # Cytoscape.js
-                └── GeoIntelMap.tsx  # React-Leaflet
+                ├── ThreatGraph.tsx # Cytoscape.js interactive network graph
+                └── GeoIntelMap.tsx # Leaflet geo-routing map with dark mode
 ```
 
 ---
@@ -246,28 +260,35 @@ BENIGN:   < 20
 ## 🔗 API Reference
 
 **Base URL:** `http://localhost:8000/api/v1`  
+**Swagger UI:** [http://localhost:8000/api/docs](http://localhost:8000/api/docs)  
+**ReDoc:** [http://localhost:8000/api/redoc](http://localhost:8000/api/redoc)  
 **Authentication:** `Authorization: Bearer <jwt_token>`
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `POST` | `/auth/register` | Register analyst account |
-| `POST` | `/auth/login` | Login (returns JWT) |
-| `GET` | `/auth/me` | Current user info |
-| `POST` | `/cases/upload` | Upload .eml or raw email |
-| `GET` | `/cases` | List cases (paginated, filtered) |
-| `GET` | `/cases/{id}` | Full case detail |
-| `POST` | `/cases/{id}/analyze` | Trigger analysis |
-| `GET` | `/cases/{id}/analysis/stream` | SSE progress stream |
-| `GET` | `/cases/{id}/analysis` | Analysis results |
-| `GET` | `/cases/{id}/iocs` | IOCs for case |
-| `GET` | `/cases/{id}/blockchain` | Chain of custody |
-| `POST` | `/cases/{id}/blockchain/verify` | Verify integrity |
-| `GET` | `/cases/{id}/report` | Download PDF report |
-| `GET` | `/graph/{id}` | Cytoscape.js graph data |
-| `GET` | `/campaigns` | Detected campaigns |
-| `GET` | `/stats` | Dashboard statistics |
-
-Interactive API docs: **http://localhost:8000/docs**
+| `POST` | `/auth/login` | Authenticate analyst & receive JWT |
+| `GET` | `/auth/me` | Current authenticated user profile |
+| `POST` | `/cases/upload` | Upload `.eml` or raw email for evidence intake |
+| `GET` | `/cases` | List all investigation cases (filtered, paginated, includes subjects) |
+| `GET` | `/cases/{id}` | Full case detail with all associated records |
+| `DELETE`| `/cases/{id}` | Soft delete case |
+| `POST` | `/analysis/{id}/analyze` | Trigger or restart analysis pipeline |
+| `GET` | `/analysis/{id}/stream` | Server-Sent Events (SSE) real-time progress stream |
+| `GET` | `/analysis/{id}/analysis` | Analysis results, threat scores, and AI findings |
+| `GET` | `/analysis/{id}/headers` | Parsed header details and RFC anomalies |
+| `GET` | `/analysis/{id}/relay-path` | Ordered SMTP transmission relay hops |
+| `GET` | `/analysis/{id}/geo` | IP Geolocation, ASN, WHOIS, and proxy/VPN indicators |
+| `GET` | `/iocs` | List and filter extracted IOCs |
+| `GET` | `/iocs/search` | Search IOCs across cases |
+| `GET` | `/iocs/case/{case_id}` | Retrieve all IOCs for a specific case |
+| `GET` | `/blockchain/{case_id}` | Retrieve chain of custody blocks for case |
+| `POST` | `/blockchain/verify` | Verify cryptographic hash chain integrity |
+| `GET` | `/reports/{case_id}/download` | Download court-ready forensic PDF report |
+| `GET` | `/reports/{case_id}/html` | Preview report in browser |
+| `GET` | `/graph/{case_id}` | Cytoscape.js threat intelligence network graph |
+| `GET` | `/campaigns` | Clustered threat campaigns across cases |
+| `GET` | `/stats` | Fleet dashboard stats, average threat score, and trend |
 
 ---
 
@@ -305,7 +326,7 @@ Every investigation action is recorded in a tamper-evident hash-chain:
 }
 ```
 
-**Verification:** Any modification of any block breaks the hash chain, which is detected instantly via `POST /cases/{id}/blockchain/verify`.
+**Verification:** Any modification of any block breaks the hash chain, which is detected instantly via `POST /blockchain/verify`.
 
 **Optional Polygon anchoring:** Set `ENABLE_BLOCKCHAIN_ANCHORING=true` in `.env` to anchor case hashes to the Polygon Amoy testnet.
 
@@ -315,19 +336,19 @@ Every investigation action is recorded in a tamper-evident hash-chain:
 
 | Layer | Technology |
 |---|---|
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy 2.0 async, Alembic |
-| **Database** | PostgreSQL 16, Redis 7 |
-| **AI/ML** | Google Gemini 2.0 Flash, scikit-learn (TF-IDF + Random Forest), SHAP |
-| **Email Parsing** | mail-parser, Python stdlib email |
-| **Auth Validation** | pyspf, dkimpy, checkdmarc |
-| **IOC & Geo** | ipinfo.io, ipwhois (RDAP), dnspython, Levenshtein |
-| **Blockchain** | SHA-256 hash chain (PostgreSQL), optional web3.py + Polygon |
-| **PDF Reports** | Jinja2 + WeasyPrint |
+| **Backend** | Python 3.11, FastAPI, SQLAlchemy 2.0 (Async), Alembic |
+| **Database & Cache** | PostgreSQL 16, Redis 7 |
+| **AI / ML** | Google Gemini 2.0 Flash, scikit-learn (TF-IDF + Random Forest), SHAP |
+| **Email Parsing** | mail-parser, Python stdlib `email` |
+| **Auth Forensics** | pyspf, dkimpy, checkdmarc, email-validator |
+| **Network Intel** | ipwhois (RDAP), python-whois, dnspython, ipinfo.io, Levenshtein |
+| **Blockchain** | SHA-256 hash chain (PostgreSQL), optional web3.py + Polygon Amoy |
+| **PDF Reporting** | Jinja2 + WeasyPrint |
 | **Frontend** | React 18, Vite, TypeScript, Tailwind CSS |
-| **State** | TanStack Query, Zustand |
-| **Visualization** | Cytoscape.js (threat graph), React-Leaflet (geo map), Recharts |
-| **Streaming** | Server-Sent Events (SSE) |
-| **Containerization** | Docker, Docker Compose, nginx |
+| **State Management** | TanStack Query v5, Zustand |
+| **Visualizations** | Cytoscape.js (graph), React-Leaflet (geo map), Recharts, SVG Gauge |
+| **Real-time Streaming**| Server-Sent Events (SSE) |
+| **Containerization** | Docker Desktop, Docker Compose, nginx |
 
 ## 👨‍💻 Development Notes
 
