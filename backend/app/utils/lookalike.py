@@ -151,17 +151,26 @@ def is_lookalike_domain(
     best_distance = threshold + 1
     best_brand: str | None = None
 
-    for brand in brand_list:
-        brand_norm = brand.lower()
+    candidates = [sld_norm]
+    if "-" in sld_norm:
+        candidates.extend([p for p in sld_norm.split("-") if len(p) >= 3])
 
-        # Skip exact match — this is a legitimate sender
-        if sld_norm == brand_norm:
-            return False, None
+    for candidate in candidates:
+        for brand in brand_list:
+            brand_norm = brand.lower()
 
-        dist = compute_edit_distance(sld_norm, brand_norm)
-        if dist <= threshold and dist < best_distance:
-            best_distance = dist
-            best_brand = brand
+            # Skip exact match
+            if candidate == brand_norm:
+                continue
+
+            max_len = max(len(candidate), len(brand_norm))
+            # Adaptive threshold: words <= 5 chars can only differ by 1 char.
+            # Ratio threshold: edit distance cannot exceed 35% of the longer word.
+            effective_threshold = min(threshold, 1 if max_len <= 5 else 2)
+            dist = compute_edit_distance(candidate, brand_norm)
+            if dist <= effective_threshold and (dist / max_len) <= 0.35 and dist < best_distance:
+                best_distance = dist
+                best_brand = brand
 
     if best_brand is not None:
         return True, best_brand
@@ -243,8 +252,10 @@ def get_suspicious_domain_score(
 
     edit_distance: int | None = None
     if is_lookalike and lookalike_target:
+        candidates = [sld] + (sld.split("-") if "-" in sld else [])
+        best_candidate = min(candidates, key=lambda c: compute_edit_distance(_normalise_for_comparison(c), lookalike_target.lower()))
         edit_distance = compute_edit_distance(
-            _normalise_for_comparison(sld),
+            _normalise_for_comparison(best_candidate),
             lookalike_target.lower(),
         )
 

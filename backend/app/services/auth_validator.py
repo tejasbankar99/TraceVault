@@ -413,14 +413,14 @@ class AuthValidatorService:
             )
         try:
             report = checkdmarc.check_dmarc(domain)
-            dmarc_data = report.get("dmarc", {})
-            tags = dmarc_data.get("tags", {})
+            dmarc_data = report.get("dmarc") if (isinstance(report, dict) and "dmarc" in report) else report
+            tags = dmarc_data.get("tags", {}) if isinstance(dmarc_data, dict) else {}
 
-            policy = tags.get("p", {}).get("value", "none")
-            sp = tags.get("sp", {}).get("value", policy)  # subdomain inherits if absent
-            pct = int(tags.get("pct", {}).get("value", 100))
-            valid = dmarc_data.get("valid", False)
-            error = "" if valid else dmarc_data.get("error", "Invalid DMARC record")
+            policy = tags.get("p", {}).get("value", "none") if isinstance(tags.get("p"), dict) else tags.get("p", "none")
+            sp = tags.get("sp", {}).get("value", policy) if isinstance(tags.get("sp"), dict) else tags.get("sp", policy)
+            pct = int(tags.get("pct", {}).get("value", 100)) if isinstance(tags.get("pct"), dict) else 100
+            valid = dmarc_data.get("valid", False) if isinstance(dmarc_data, dict) else False
+            error = "" if valid else (dmarc_data.get("error", "Invalid DMARC record") if isinstance(dmarc_data, dict) else "Invalid DMARC record")
 
             return DMARCResult(
                 result="pass" if valid else "fail",

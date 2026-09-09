@@ -7,6 +7,7 @@ sse-starlette>=2.1.0
 # ── Data Validation ────────────────────────────────────────────────────────────
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
+email-validator>=2.0.0
 
 # ── Database ───────────────────────────────────────────────────────────────────
 sqlalchemy[asyncio]>=2.0.0
@@ -30,6 +31,7 @@ dkimpy>=1.1.5
 
 # ── Network Intelligence ───────────────────────────────────────────────────────
 ipwhois>=1.2.0
+python-whois>=0.9.0
 dnspython>=2.6.0
 requests>=2.32.0
 httpx>=0.27.0

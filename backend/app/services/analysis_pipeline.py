@@ -27,6 +27,7 @@ Pipeline stages
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Optional
@@ -42,6 +43,8 @@ from app.services.ai_threat_engine import AIThreatEngine, ThreatAnalysisResult
 from app.services.blockchain_ledger import BlockchainLedgerService
 from app.services.geo_intelligence import GeoIntelligenceService, IPIntelligenceResult
 from app.services.threat_correlator import ThreatCorrelatorService
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -241,9 +244,62 @@ class AnalysisPipeline:
                 "Gathering geolocation and infrastructure intelligence…",
             )
             geo_result: Optional[IPIntelligenceResult] = None
-            if sender_ip:
-                geo_result = await self.geo.analyze_ip(sender_ip)
-                await self._save_geo_result(db, case_id, sender_ip, geo_result)
+            seen_ips: set[str] = set()
+
+            # 1. Resolve & geolocate Sender Domain Origin (e.g. vit.edu -> Mumbai, India)
+            from_domain = getattr(parsed, "from_domain", None)
+            if from_domain:
+                try:
+                    import socket
+                    domain_ip = socket.gethostbyname(from_domain)
+                    if domain_ip and domain_ip not in seen_ips:
+                        seen_ips.add(domain_ip)
+                        domain_geo = await self.geo.analyze_ip(domain_ip)
+                        domain_geo.hostname = f"Sender Domain: {from_domain}"
+                        domain_geo.enrichment_source = f"Domain Origin ({from_domain})"
+                        await self._save_geo_result(db, case_id, domain_ip, domain_geo)
+                        if geo_result is None:
+                            geo_result = domain_geo
+                except Exception as domain_exc:
+                    logger.warning("Domain IP lookup failed for %s: %s", from_domain, domain_exc)
+
+            # 2. Geolocate all public relay hops
+            for hop in (header_result.relay_chain or []):
+                hop_ip = getattr(hop, "ip_address", None)
+                is_public = getattr(hop, "is_public_ip", True)
+                if hop_ip and is_public and hop_ip not in seen_ips:
+                    seen_ips.add(hop_ip)
+                    try:
+                        hop_geo = await self.geo.analyze_ip(hop_ip)
+                        await self._save_geo_result(db, case_id, hop_ip, hop_geo)
+                        if geo_result is None:
+                            geo_result = hop_geo  # keep first result for completion event
+                    except Exception as geo_exc:
+                        logger.warning("Geo lookup failed for %s: %s", hop_ip, geo_exc)
+            # Also check for client-originating IP headers (desktop clients / custom SMTP)
+            client_ip = getattr(parsed, "x_originating_ip", None)
+            if not client_ip and hasattr(parsed, "headers") and isinstance(parsed.headers, dict):
+                client_ip = parsed.headers.get("x-originating-ip") or parsed.headers.get("x-sender-ip")
+            if client_ip and isinstance(client_ip, str):
+                clean_client_ip = client_ip.strip("[] \t\r\n")
+                if clean_client_ip and clean_client_ip not in seen_ips:
+                    seen_ips.add(clean_client_ip)
+                    try:
+                        client_geo = await self.geo.analyze_ip(clean_client_ip)
+                        await self._save_geo_result(db, case_id, clean_client_ip, client_geo)
+                        if geo_result is None:
+                            geo_result = client_geo
+                    except Exception as geo_exc:
+                        logger.warning("Geo lookup failed for client IP %s: %s", clean_client_ip, geo_exc)
+
+            # Fallback: if no relay hops, try sender_ip directly
+            if not seen_ips and sender_ip:
+                try:
+                    geo_result = await self.geo.analyze_ip(sender_ip)
+                    await self._save_geo_result(db, case_id, sender_ip, geo_result)
+                except Exception as geo_exc:
+                    logger.warning("Geo lookup failed for sender IP %s: %s", sender_ip, geo_exc)
+
 
             # ----------------------------------------------------------------
             # Stage 7 — Threat correlation (88 %)
@@ -307,6 +363,7 @@ class AnalysisPipeline:
             )
 
         except Exception as exc:
+            logger.exception("Pipeline failed for case %s: %s", case_id, exc)
             yield sse_event("error", 0, f"Analysis failed: {exc!s}")
             await self._mark_case_failed(db, case_id, str(exc))
 
@@ -378,7 +435,7 @@ class AnalysisPipeline:
             x_originating_ip=getattr(parsed, "x_originating_ip", None),
             content_type=getattr(parsed, "content_type", None),
             raw_headers=getattr(parsed, "headers", {}) or {},
-            rfc_violations=getattr(parsed, "rfc_violations", []) or anomalies_data,
+            rfc_violations=(getattr(parsed, "rfc_violations", []) or []) + anomalies_data,
             spoofing_indicators=getattr(header_result, "spoofing_indicators", []) or [],
         )
         db.add(record)

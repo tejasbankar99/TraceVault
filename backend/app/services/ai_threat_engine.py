@@ -258,6 +258,18 @@ class AIThreatEngine:
                 score += 10
                 triggered_rules.append("Complete authentication failure (SPF+DKIM+DMARC)")
 
+            # Cryptographic identity validation credit
+            if (
+                auth_result.spf_result == "pass"
+                and auth_result.dkim_result == "pass"
+                and auth_result.dmarc_result == "pass"
+            ):
+                score -= 25
+                triggered_rules.append("Cryptographic authentication verified (SPF + DKIM + DMARC pass)")
+            elif auth_result.dkim_result == "pass" and auth_result.dmarc_result == "pass":
+                score -= 15
+                triggered_rules.append("Cryptographic signature verified (DKIM + DMARC pass)")
+
         # --- Header anomalies ------------------------------------------------
         if header_forensics:
             for anomaly in (header_forensics.anomalies or []):
@@ -335,7 +347,7 @@ class AIThreatEngine:
                 f"Phishing language patterns detected ({phishing_count} indicators)"
             )
 
-        return min(score, 100), triggered_rules
+        return max(0, min(score, 100)), triggered_rules
 
     # ------------------------------------------------------------------
     # Layer 2: ML classifier
@@ -576,6 +588,18 @@ Respond ONLY with valid JSON matching this exact schema:
         # Layer 2 — ML
         ml_proba, shap_features = self.compute_ml_score(parsed_email)
         ml_score = int(ml_proba * 100)
+
+        # Forensic calibration: when sender domain authentication passes (DKIM + DMARC)
+        # and zero malicious indicators exist, calibrate neutral ML baseline towards benign
+        has_critical_indicators = (
+            any(getattr(i, "severity", "") == "CRITICAL" or getattr(i, "is_lookalike", False) for i in (iocs or []))
+            or (rule_score >= 40)
+        )
+        if auth_result and auth_result.dkim_result == "pass" and auth_result.dmarc_result == "pass" and not has_critical_indicators:
+            if ml_proba == 0.5:
+                ml_score = 15
+            else:
+                ml_score = min(ml_score, int(ml_proba * 50))
 
         # Layer 3 — Gemini
         gemini_result = await self.analyze_with_gemini(

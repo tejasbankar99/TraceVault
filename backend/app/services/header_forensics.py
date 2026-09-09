@@ -261,15 +261,18 @@ class HeaderForensicsService:
         mid = parsed_email.message_id or ""
         mid_domain = mid.split("@")[-1].strip(">").lower() if "@" in mid else ""
         if from_domain and mid_domain and mid_domain != from_domain:
-            anomalies.append(HeaderAnomaly(
-                anomaly_type="SUSPICIOUS_MESSAGE_ID",
-                description=(
-                    f"Message-ID domain '{mid_domain}' does not match "
-                    f"From domain '{from_domain}'. May indicate a forged header."
-                ),
-                severity="MEDIUM",
-                field_name="Message-ID",
-            ))
+            cloud_esps = {"mail.gmail.com", "google.com", "googlemail.com", "protection.outlook.com", "outlook.com", "sendgrid.net", "amazonses.com"}
+            is_cloud_esp = any(esp in mid_domain for esp in cloud_esps)
+            if not is_cloud_esp:
+                anomalies.append(HeaderAnomaly(
+                    anomaly_type="SUSPICIOUS_MESSAGE_ID",
+                    description=(
+                        f"Message-ID domain '{mid_domain}' does not match "
+                        f"From domain '{from_domain}'. May indicate a forged header."
+                    ),
+                    severity="MEDIUM",
+                    field_name="Message-ID",
+                ))
 
         # 4. Missing Date header
         if not parsed_email.date:
