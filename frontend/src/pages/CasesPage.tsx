@@ -154,7 +154,7 @@ export default function CasesPage() {
                   </td>
                   <td className="px-4 py-3 max-w-xs">
                     <span className="text-sm text-foreground truncate block">
-                      {c.email_headers?.subject ?? (
+                      {c.subject || c.email_headers?.[0]?.subject || (
                         <span className="text-muted-foreground italic">Pending analysis</span>
                       )}
                     </span>

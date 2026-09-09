@@ -1,16 +1,152 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from 'recharts'
 import {
   Shield, AlertTriangle, GitFork, Search, CheckCircle2,
-  XCircle, ArrowRight, Loader2
+  XCircle, ArrowRight, Loader2, Activity, Crosshair, Layers
 } from 'lucide-react'
 import { statsAPI } from '@/lib/api'
 import { cn, formatRelativeTime, getSeverityBgColor } from '@/lib/utils'
 import type { Severity, RecentCaseSummary } from '@/types'
+
+// ── Threat Environment Gauge ─────────────────────────────────────────────────
+
+function ThreatGauge({
+  score, totalCases, highThreats, totalIocs
+}: {
+  score: number
+  totalCases: number
+  highThreats: number
+  totalIocs: number
+}) {
+  const clampedScore = Math.min(100, Math.max(0, Math.round(score)))
+  const arcLength = 251.33 // Math.PI * 80
+
+  const gaugeColor =
+    clampedScore >= 80 ? '#dc2626' :
+    clampedScore >= 60 ? '#ea580c' :
+    clampedScore >= 35 ? '#d97706' : '#16a34a'
+
+  const label =
+    clampedScore >= 80 ? 'CRITICAL RISK' :
+    clampedScore >= 60 ? 'HIGH RISK' :
+    clampedScore >= 35 ? 'MODERATE RISK' : 'LOW RISK'
+
+  const highPct = totalCases > 0 ? Math.round((highThreats / totalCases) * 100) : 0
+  const iocDensity = totalCases > 0 ? (totalIocs / totalCases).toFixed(1) : '0'
+  const dashOffset = arcLength * (1 - clampedScore / 100)
+
+  return (
+    <div className="flex flex-col items-center justify-between flex-1 gap-3">
+      {/* Semi-circle Gauge */}
+      <div className="w-full max-w-[240px] flex justify-center">
+        <svg viewBox="0 0 240 135" className="w-full h-auto overflow-visible">
+          <defs>
+            <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor={gaugeColor} floodOpacity="0.5" />
+            </filter>
+          </defs>
+
+          {/* Background Track Arc (Radius 80, centered at 120, 100) */}
+          <path
+            d="M 40 100 A 80 80 0 0 1 200 100"
+            fill="none"
+            stroke="hsl(var(--secondary))"
+            strokeWidth="14"
+            strokeLinecap="round"
+          />
+
+          {/* Subtle colored backdrop zones */}
+          <path
+            d="M 40 100 A 80 80 0 0 1 200 100"
+            fill="none"
+            stroke={gaugeColor}
+            strokeWidth="14"
+            strokeLinecap="round"
+            opacity="0.15"
+          />
+
+          {/* Active Progress Arc */}
+          <path
+            d="M 40 100 A 80 80 0 0 1 200 100"
+            fill="none"
+            stroke={gaugeColor}
+            strokeWidth="14"
+            strokeLinecap="round"
+            strokeDasharray={arcLength}
+            strokeDashoffset={dashOffset}
+            filter="url(#gauge-glow)"
+            className="transition-all duration-1000 ease-out"
+          />
+
+          {/* Large Center Score */}
+          <text
+            x="120"
+            y="78"
+            textAnchor="middle"
+            className="font-bold font-mono tracking-tight"
+            style={{ fontSize: 34, fill: gaugeColor, fontWeight: 800 }}
+          >
+            {clampedScore}
+          </text>
+
+          {/* Status Label */}
+          <text
+            x="120"
+            y="98"
+            textAnchor="middle"
+            className="font-semibold"
+            style={{ fontSize: 11, fill: 'hsl(var(--foreground))', letterSpacing: '0.08em' }}
+          >
+            {label}
+          </text>
+
+          {/* Subtitle */}
+          <text
+            x="120"
+            y="114"
+            textAnchor="middle"
+            style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', letterSpacing: '0.05em' }}
+          >
+            AVG THREAT SCORE
+          </text>
+
+          {/* Scale Anchors */}
+          <text x="36" y="118" style={{ fontSize: 9, fill: '#16a34a', fontWeight: 600 }}>0</text>
+          <text x="204" y="118" textAnchor="end" style={{ fontSize: 9, fill: '#dc2626', fontWeight: 600 }}>100</text>
+        </svg>
+      </div>
+
+      {/* Supporting Metrics Bar */}
+      <div className="grid grid-cols-3 gap-2.5 w-full text-center mt-1">
+        <div className="bg-secondary/60 border border-border/40 rounded-lg py-2 px-1">
+          <div className="flex items-center justify-center gap-1 mb-0.5">
+            <Activity className="w-3.5 h-3.5 text-primary" />
+          </div>
+          <p className="text-base font-bold font-mono text-foreground">{clampedScore}</p>
+          <p className="text-[10px] text-muted-foreground">Avg Score</p>
+        </div>
+        <div className="bg-secondary/60 border border-border/40 rounded-lg py-2 px-1">
+          <div className="flex items-center justify-center gap-1 mb-0.5">
+            <Crosshair className="w-3.5 h-3.5 text-orange-500" />
+          </div>
+          <p className="text-base font-bold font-mono text-orange-400">{highPct}%</p>
+          <p className="text-[10px] text-muted-foreground">High/Critical</p>
+        </div>
+        <div className="bg-secondary/60 border border-border/40 rounded-lg py-2 px-1">
+          <div className="flex items-center justify-center gap-1 mb-0.5">
+            <Layers className="w-3.5 h-3.5 text-yellow-500" />
+          </div>
+          <p className="text-base font-bold font-mono text-yellow-400">{iocDensity}</p>
+          <p className="text-[10px] text-muted-foreground">IOCs/Case</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const SEVERITY_ORDER: Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'BENIGN']
 
@@ -85,9 +221,7 @@ export default function DashboardPage() {
     fill: SEVERITY_COLORS[s],
   }))
 
-  const threatTrend = stats.threat_trend ?? []
   const recentCases = stats.recent_cases ?? []
-
 
   return (
     <div className="space-y-6">
@@ -140,24 +274,11 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
 
-        {/* 30-day trend */}
-        <div className="glass-card">
-          <h2 className="text-sm font-semibold text-foreground mb-4">30-Day Case Trend</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={threatTrend} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
-                tickFormatter={d => new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' })} />
-              <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{
-                  background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px', color: 'hsl(var(--foreground))',
-                }}
-              />
-              <Line type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* Threat Environment Gauge */}
+        <div className="glass-card flex flex-col">
+          <h2 className="text-sm font-semibold text-foreground mb-1">Threat Environment Level</h2>
+          <p className="text-xs text-muted-foreground mb-4">Real-time risk posture across all cases</p>
+          <ThreatGauge score={stats.avg_threat_score ?? 0} totalCases={stats.total_cases} highThreats={highThreats} totalIocs={stats.total_iocs} />
         </div>
       </div>
 

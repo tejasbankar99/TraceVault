@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Shield, AlertTriangle, FileText, Globe, Network, Link2,
   Lock, BookOpen, Download, Loader2, Copy, CheckCircle2,
-  ExternalLink, ChevronDown, ChevronUp, Info
+  ExternalLink, ChevronDown, ChevronUp, Info, ArrowRight, MapPin, Server
 } from 'lucide-react'
 import { casesAPI, analysisAPI, iocsAPI, blockchainAPI, geoAPI, reportsAPI } from '@/lib/api'
 import {
@@ -182,12 +182,12 @@ function OverviewTab({ caseData, analysis }: { caseData: Case | undefined, analy
         {/* Auth quick view */}
         <div className="glass-card">
           <p className="text-xs text-muted-foreground mb-2">Email Authentication</p>
-          {caseData?.auth_result ? (
+          {caseData?.auth_results?.[0] ? (
             <div className="space-y-1.5">
               {[
-                ['SPF', caseData.auth_result?.spf_result],
-                ['DKIM', caseData.auth_result?.dkim_result],
-                ['DMARC', caseData.auth_result?.dmarc_result],
+                ['SPF', caseData.auth_results[0]?.spf_result],
+                ['DKIM', caseData.auth_results[0]?.dkim_result],
+                ['DMARC', caseData.auth_results[0]?.dmarc_result],
               ].map(([proto, result]) => (
                 <div key={proto as string} className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground font-mono">{proto}</span>
@@ -330,9 +330,35 @@ function AIAnalysisTab({ analysis }: { analysis: AnalysisResult | undefined }) {
 
 function HeadersTab({ caseData }: { caseData: Case | undefined }) {
   const [showRaw, setShowRaw] = useState(false)
-  const headers = caseData?.email_headers
-  const auth = caseData?.auth_result
+  const headers = caseData?.email_headers?.[0]
+  const auth = caseData?.auth_results?.[0]
   const relayHops = caseData?.relay_hops ?? []
+
+  const { data: geoData = [] } = useQuery({
+    queryKey: ['geo', caseData?.case_id],
+    queryFn: () => geoAPI.getForCase(caseData!.case_id),
+    enabled: !!caseData?.case_id,
+  })
+
+  // Sort hops chronologically: earliest hop (hop_index 0) to newest
+  const sortedHops = [...relayHops].sort((a, b) => a.hop_index - b.hop_index)
+
+  // Probable sending infrastructure is the earliest public hop (or hop 0)
+  const firstPublicHop = sortedHops.find(h => h.is_public_ip) || sortedHops[0]
+
+  // Find sender domain origin in geoData if available
+  const domainGeo = geoData.find(g => (g.enrichment_source || '').toLowerCase().includes('domain origin'))
+
+  // Extract clean recipient address from Delivered-To or To headers
+  const recipientAddr = (() => {
+    const rawTo = headers?.raw_headers?.['delivered-to'] || headers?.raw_headers?.['to']
+    if (rawTo) {
+      const match = String(rawTo).match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/)
+      if (match) return match[1]
+      return String(rawTo).replace(/[[\]'"]/g, '').trim()
+    }
+    return 'Recipient Gateway'
+  })()
 
   return (
     <div className="space-y-6">
@@ -344,7 +370,7 @@ function HeadersTab({ caseData }: { caseData: Case | undefined }) {
             {[
               { proto: 'SPF', result: auth.spf_result, domain: auth.spf_domain, note: auth.spf_explanation },
               { proto: 'DKIM', result: auth.dkim_result, domain: auth.dkim_domain, note: auth.dkim_selector ? `Selector: ${auth.dkim_selector}` : '' },
-              { proto: 'DMARC', result: auth.dmarc_result, domain: (caseData as { email_headers?: { from_domain: string } })?.email_headers?.from_domain, note: auth.dmarc_policy ? `Policy: ${auth.dmarc_policy}` : '' },
+              { proto: 'DMARC', result: auth.dmarc_result, domain: headers?.from_domain, note: auth.dmarc_policy ? `Policy: ${auth.dmarc_policy}` : '' },
             ].map(({ proto, result, domain, note }) => (
               <div key={proto} className={cn(
                 'p-4 rounded-xl border',
@@ -382,6 +408,7 @@ function HeadersTab({ caseData }: { caseData: Case | undefined }) {
           <div className="space-y-2">
             {[
               { label: 'From', value: `${headers.from_name} <${headers.from_addr}>` },
+              { label: 'To', value: recipientAddr },
               { label: 'Reply-To', value: headers.reply_to },
               { label: 'Return-Path', value: headers.return_path },
               { label: 'Message-ID', value: headers.message_id },
@@ -414,8 +441,11 @@ function HeadersTab({ caseData }: { caseData: Case | undefined }) {
             <div className="mt-3 p-3 rounded-lg bg-orange-950/30 border border-orange-800/50">
               <p className="text-xs font-semibold text-orange-400 mb-2">RFC Violations</p>
               <ul className="space-y-1">
-                {headers.rfc_violations.map((v: string, i: number) => (
-                  <li key={i} className="text-xs text-orange-300 flex gap-2"><span>●</span>{v}</li>
+                {headers.rfc_violations.map((v: string | { type: string; severity: string; description: string }, i: number) => (
+                  <li key={i} className="text-xs text-orange-300 flex gap-2">
+                    <span>●</span>
+                    {typeof v === 'string' ? v : v.description}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -423,68 +453,260 @@ function HeadersTab({ caseData }: { caseData: Case | undefined }) {
         </div>
       )}
 
-      {/* Relay path */}
-      {relayHops.length > 0 && (
-        <div className="glass-card">
-          <h3 className="text-sm font-semibold text-foreground mb-4">SMTP Relay Path</h3>
-          <div className="space-y-3">
-            {[...relayHops].reverse().map((hop, i) => (
-              <div key={hop.hop_index} className="relative">
-                {i < relayHops.length - 1 && (
-                  <div className="absolute left-3 top-10 w-0.5 h-6 bg-border" />
-                )}
-                <div className={cn(
-                  'flex items-start gap-3 p-3 rounded-lg border',
-                  hop.is_suspicious
-                    ? 'bg-red-950/20 border-red-800/50'
-                    : i === 0
-                    ? 'bg-primary/10 border-primary/30'
-                    : 'bg-secondary/50 border-border'
-                )}>
+      {/* ─── Received Header Analysis & Relay Path ─── */}
+      <div className="glass-card space-y-6">
+        <div className="flex items-start justify-between flex-wrap gap-3 border-b border-border pb-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base font-bold text-foreground">Received Header Analysis</h3>
+              <span className="text-xs px-2 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 font-semibold">
+                Relay Path
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              RFC 5321 Transmission Reconstruction & Origin Attribution Path
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-950/50 border border-emerald-700/60 text-emerald-300 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              Probable Sending Infrastructure
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-950/50 border border-red-700/60 text-red-300 font-medium">
+              <span className="w-2 h-2 rounded-full bg-red-400 animate-ping" />
+              Suspicious Server / IP
+            </span>
+          </div>
+        </div>
+
+        {/* ─── Visual Transmission Flowchart (Sender → Server 1 → Server 2 → Suspicious → Recipient) ─── */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Email Transmission Direction (Hop-by-Hop Flow)
+          </p>
+          <div className="flex items-center gap-2 overflow-x-auto pb-4 pt-1">
+            {/* 1. Sender Node */}
+            <div className="min-w-[180px] p-3 rounded-xl border border-emerald-700/60 bg-emerald-950/20 flex flex-col justify-between shrink-0">
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1.5">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60">
+                    Sender
+                  </span>
+                  <span className="text-xs">{domainGeo?.country_code === 'IN' ? '🇮🇳 IN' : '🌐'}</span>
+                </div>
+                <p className="font-mono text-xs text-foreground font-bold truncate" title={headers?.from_addr}>
+                  {headers?.from_addr || 'Sender'}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  Domain: {headers?.from_domain || 'Unknown'}
+                </p>
+              </div>
+              <div className="mt-2 pt-2 border-t border-emerald-900/40 text-[10px] text-emerald-400 font-medium">
+                Probable Origin
+              </div>
+            </div>
+
+            {/* Connecting Arrow */}
+            <div className="flex items-center justify-center shrink-0 px-1">
+              <ArrowRight className="w-5 h-5 text-indigo-400 animate-pulse" />
+            </div>
+
+            {/* 2. Mail Server Hops */}
+            {sortedHops.map((hop, idx) => {
+              const hopGeo = geoData.find(g => g.ip_address === hop.ip_address)
+              const isSuspicious = hop.is_suspicious || hopGeo?.is_tor || hopGeo?.is_vpn
+              const isProbableOrigin = firstPublicHop && hop.id === firstPublicHop.id
+              const hopCountry = hopGeo?.country || (hop.is_public_ip ? 'External' : 'Internal Network')
+              const countryFlag = hopGeo?.country_code === 'IN' ? '🇮🇳' :
+                                  hopGeo?.country_code === 'US' ? '🇺🇸' :
+                                  hopGeo?.country_code === 'DE' ? '🇩🇪' :
+                                  hopGeo?.country_code === 'RU' ? '🇷🇺' : '🌐'
+
+              return (
+                <div key={hop.id || idx} className="flex items-center gap-2 shrink-0">
                   <div className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
-                    i === 0 ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'
+                    'min-w-[210px] max-w-[240px] p-3 rounded-xl border flex flex-col justify-between transition-all',
+                    isSuspicious
+                      ? 'border-red-600 bg-red-950/50 shadow-lg shadow-red-950/50'
+                      : isProbableOrigin
+                      ? 'border-sky-600/80 bg-sky-950/30'
+                      : 'border-border bg-secondary/60'
                   )}>
-                    {hop.hop_index + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-mono text-foreground truncate">
-                        {hop.by_server || 'Unknown server'}
-                      </span>
-                      {hop.ip_address && (
+                    <div>
+                      {/* Badge bar */}
+                      <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                        {isSuspicious ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-600 text-white flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5" /> Suspicious Mail Server
+                          </span>
+                        ) : isProbableOrigin ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-600 text-white flex items-center gap-1">
+                            <MapPin className="w-2.5 h-2.5" /> Probable Sending Infrastructure
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
+                            Mail Server {idx + 1}
+                          </span>
+                        )}
+                        <span className="text-xs font-medium text-foreground">{countryFlag} {hopGeo?.country_code || ''}</span>
+                      </div>
+
+                      {/* Server Hostname */}
+                      <p className="font-mono text-xs font-semibold text-foreground truncate" title={hop.by_server || hop.from_server || ''}>
+                        {hop.by_server || hop.from_server || 'Mail Transfer Agent'}
+                      </p>
+
+                      {/* IP Address */}
+                      <div className="flex items-center gap-1.5 mt-1">
                         <span className={cn(
-                          'text-xs px-1.5 py-0.5 rounded font-mono',
+                          'font-mono text-xs px-1.5 py-0.5 rounded',
                           hop.is_public_ip
                             ? 'bg-orange-950 text-orange-300 border border-orange-800'
                             : 'bg-secondary text-muted-foreground'
                         )}>
-                          {hop.ip_address}
+                          {hop.ip_address || 'Internal Hop'}
                         </span>
-                      )}
-                      {hop.protocol && (
-                        <span className="text-xs text-muted-foreground">{hop.protocol}</span>
-                      )}
+                        {hop.ip_address && <CopyButton text={hop.ip_address} />}
+                      </div>
+
+                      {/* Country & Location */}
+                      <p className="text-[11px] text-muted-foreground mt-1 truncate">
+                        📍 {hopGeo?.city ? `${hopGeo.city}, ` : ''}{hopCountry}
+                      </p>
                     </div>
-                    {hop.from_server && (
-                      <p className="text-xs text-muted-foreground mt-0.5">From: {hop.from_server}</p>
-                    )}
-                    {hop.timestamp && (
-                      <p className="text-xs text-muted-foreground">{formatDate(hop.timestamp)}</p>
-                    )}
+
+                    {/* Timestamp */}
+                    <div className="mt-2 pt-2 border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span>{hop.protocol || 'SMTP'}</span>
+                      <span>{hop.timestamp ? formatDate(hop.timestamp) : 'Logged'}</span>
+                    </div>
                   </div>
-                  {i === 0 && (
-                    <span className="text-xs text-primary font-medium shrink-0">Origin</span>
-                  )}
-                  {hop.is_suspicious && (
-                    <span className="text-xs text-red-400 font-medium shrink-0">⚠ Suspicious</span>
-                  )}
+
+                  {/* Connecting Arrow to next node */}
+                  <div className="flex items-center justify-center shrink-0 px-1">
+                    <ArrowRight className="w-5 h-5 text-indigo-400 animate-pulse" />
+                  </div>
                 </div>
+              )
+            })}
+
+            {/* 3. Recipient Node */}
+            <div className="min-w-[180px] p-3 rounded-xl border border-primary/50 bg-primary/10 flex flex-col justify-between shrink-0">
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1.5">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary text-white">
+                    Recipient
+                  </span>
+                  <span className="text-xs">📥</span>
+                </div>
+                <p className="font-mono text-xs text-foreground font-bold truncate" title={recipientAddr}>
+                  {recipientAddr}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Final Gateway Delivery
+                </p>
               </div>
-            ))}
+              <div className="mt-2 pt-2 border-t border-primary/20 text-[10px] text-primary font-medium">
+                Destination Verified
+              </div>
+            </div>
           </div>
         </div>
-      )}
+
+        {/* ─── Detailed Hop-by-Hop Timeline ─── */}
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Detailed Received Header Hop Log ({sortedHops.length} hops recorded)
+          </p>
+          <div className="space-y-3">
+            {sortedHops.map((hop, i) => {
+              const hopGeo = geoData.find(g => g.ip_address === hop.ip_address)
+              const isSuspicious = hop.is_suspicious || hopGeo?.is_tor || hopGeo?.is_vpn
+              const isProbableOrigin = firstPublicHop && hop.id === firstPublicHop.id
+
+              return (
+                <div key={hop.id || i} className="relative">
+                  {i < sortedHops.length - 1 && (
+                    <div className="absolute left-3.5 top-10 w-0.5 h-8 bg-border" />
+                  )}
+                  <div className={cn(
+                    'flex items-start gap-3 p-3.5 rounded-xl border transition-colors',
+                    isSuspicious
+                      ? 'bg-red-950/30 border-red-700/60'
+                      : isProbableOrigin
+                      ? 'bg-sky-950/20 border-sky-700/50'
+                      : 'bg-secondary/40 border-border/70'
+                  )}>
+                    <div className={cn(
+                      'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0',
+                      isSuspicious
+                        ? 'bg-red-600 text-white'
+                        : isProbableOrigin
+                        ? 'bg-sky-600 text-white'
+                        : 'bg-secondary text-muted-foreground border border-border'
+                    )}>
+                      {i + 1}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-mono font-bold text-foreground">
+                          {hop.by_server || 'Mail Gateway'}
+                        </span>
+                        {hop.ip_address && (
+                          <span className={cn(
+                            'text-xs px-2 py-0.5 rounded font-mono',
+                            hop.is_public_ip
+                              ? 'bg-orange-950 text-orange-300 border border-orange-800'
+                              : 'bg-secondary text-muted-foreground'
+                          )}>
+                            {hop.ip_address}
+                          </span>
+                        )}
+                        {hopGeo?.country && (
+                          <span className="text-xs text-foreground bg-secondary/80 px-2 py-0.5 rounded border border-border">
+                            📍 {hopGeo.city ? `${hopGeo.city}, ` : ''}{hopGeo.country}
+                          </span>
+                        )}
+                        {hop.protocol && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {hop.protocol}
+                          </span>
+                        )}
+                      </div>
+
+                      {hop.from_server && (
+                        <p className="text-xs text-muted-foreground font-mono truncate">
+                          Received from: {hop.from_server}
+                        </p>
+                      )}
+                      {hop.timestamp && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Timestamp: {formatDate(hop.timestamp)}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      {isSuspicious && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600 text-white flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" /> Suspicious Mail Server
+                        </span>
+                      )}
+                      {isProbableOrigin && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-800 text-emerald-100 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> Probable Sending Infrastructure
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Raw headers toggle */}
       {headers?.raw_headers && (
@@ -614,6 +836,7 @@ function IOCsTab({ caseId }: { caseId: string }) {
 }
 
 function GeoTab({ caseId }: { caseId: string }) {
+  const [showMap, setShowMap] = useState(false)
   const { data: geoData = [], isLoading } = useQuery({
     queryKey: ['geo', caseId],
     queryFn: () => geoAPI.getForCase(caseId),
@@ -624,49 +847,160 @@ function GeoTab({ caseId }: { caseId: string }) {
 
   return (
     <div className="space-y-4">
-      <Suspense fallback={<div className="h-64 bg-secondary rounded-xl animate-pulse" />}>
-        <GeoIntelMap geoData={geoData} />
-      </Suspense>
-
-      {geoData.map(geo => (
-        <div key={geo.id} className="glass-card">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="font-mono text-primary font-bold">{geo.ip_address}</p>
-              <p className="text-muted-foreground text-sm">{geo.enrichment_source}</p>
-            </div>
-            <div className="flex gap-2">
-              {geo.is_vpn   && <span className="text-xs px-2 py-1 rounded bg-orange-950 text-orange-400 border border-orange-800">VPN</span>}
-              {geo.is_tor   && <span className="text-xs px-2 py-1 rounded bg-red-950 text-red-400 border border-red-800">TOR</span>}
-              {geo.is_hosting && <span className="text-xs px-2 py-1 rounded bg-blue-950 text-blue-400 border border-blue-800">HOSTING</span>}
-              {geo.is_proxy && <span className="text-xs px-2 py-1 rounded bg-yellow-950 text-yellow-400 border border-yellow-800">PROXY</span>}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-            {[
-              ['Country', `${geo.country_code ? `${geo.country_code} ` : ''}${geo.country ?? 'Unknown'}`],
-              ['City / Region', [geo.city, geo.region].filter(Boolean).join(', ') || 'Unknown'],
-              ['ISP / Org', geo.isp ?? geo.org ?? 'Unknown'],
-              ['ASN', geo.asn ?? 'Unknown'],
-              ['Hostname', geo.hostname ?? 'Unknown'],
-              ['PTR Record', geo.ptr_record ?? 'None'],
-            ].map(([label, value]) => (
-              <div key={label as string}>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-foreground truncate">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Disclaimer */}
-          <div className="mt-4 p-3 rounded-lg bg-yellow-950/30 border border-yellow-800/50 flex items-start gap-2">
-            <Info className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-yellow-300">
-              <strong>Important:</strong> Geographic data reflects the location of sending infrastructure (mail server, relay, or VPN exit node), not the physical location or identity of the threat actor. This information supports investigation but does not constitute attribution.
-            </p>
-          </div>
+      {/* Route Journey Breadcrumb Flow */}
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Transmission Path & Domain Origin Flow
+          </p>
+          <button
+            onClick={() => setShowMap(!showMap)}
+            className="text-xs px-3 py-1 rounded-lg bg-secondary hover:bg-secondary/80 border border-border text-foreground transition-colors font-medium"
+          >
+            {showMap ? '📊 Hide Map (Data Only)' : '🗺️ Show Interactive Map'}
+          </button>
         </div>
-      ))}
+
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {geoData.map((g, idx) => {
+            const isOrigin = (g.enrichment_source || '').toLowerCase().includes('domain origin') ||
+                             (g.hostname || '').toLowerCase().includes('sender domain')
+            return (
+              <div key={g.id || idx} className="flex items-center gap-2">
+                <div className={cn(
+                  'flex items-center gap-2.5 px-3 py-2 rounded-lg border text-sm',
+                  isOrigin
+                    ? 'bg-emerald-950/40 border-emerald-700/60 text-emerald-300'
+                    : 'bg-secondary/80 border-border text-foreground'
+                )}>
+                  <span className="text-base">{g.country_code === 'IN' ? '🇮🇳' : g.country_code === 'US' ? '🇺🇸' : '🌐'}</span>
+                  <div>
+                    <p className="font-semibold text-xs leading-tight">
+                      {isOrigin ? 'Domain Origin' : `Relay Hop #${idx}`}
+                    </p>
+                    <p className="text-[11px] opacity-80 font-mono">
+                      {[g.city, g.country].filter(Boolean).join(', ')} · {g.ip_address}
+                    </p>
+                  </div>
+                </div>
+                {idx < geoData.length - 1 && (
+                  <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Forensic Intelligence Header Note */}
+      <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-800/60 flex items-start gap-3">
+        <Info className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+        <div className="text-xs space-y-1">
+          <p className="font-semibold text-sky-200">
+            Forensic Intelligence: Domain Origin vs. Transmitting Gateway
+          </p>
+          <p className="text-sky-300/90 leading-relaxed">
+            Forensic email tracing distinguishes between the <strong>Claimed Sender Domain Infrastructure</strong> (e.g. university web servers in India) and the <strong>Outbound Mail Transfer Agent (MTA)</strong> (e.g. Google Cloud data centers in the US). Consumer webmail providers strip personal residential IPs from headers for privacy reasons.
+          </p>
+        </div>
+      </div>
+
+      {/* Optional Map View */}
+      {showMap && (
+        <Suspense fallback={<div className="h-64 bg-secondary rounded-xl animate-pulse" />}>
+          <GeoIntelMap geoData={geoData} />
+        </Suspense>
+      )}
+
+      {/* Structured Forensic Intelligence Cards */}
+      <div className="space-y-3">
+        {geoData.map((geo, idx) => {
+          const isOrigin = (geo.enrichment_source || '').toLowerCase().includes('domain origin') ||
+                           (geo.hostname || '').toLowerCase().includes('sender domain')
+          const isCloudMTA = ((geo.isp || '') + ' ' + (geo.org || '')).toLowerCase().includes('google') ||
+                             ((geo.isp || '') + ' ' + (geo.org || '')).toLowerCase().includes('microsoft') ||
+                             ((geo.isp || '') + ' ' + (geo.org || '')).toLowerCase().includes('amazon')
+
+          return (
+            <div
+              key={geo.id || idx}
+              className={cn(
+                'glass-card border',
+                isOrigin ? 'border-emerald-700/60 bg-emerald-950/10' : 'border-border'
+              )}
+            >
+              <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg">{geo.country_code === 'IN' ? '🇮🇳' : geo.country_code === 'US' ? '🇺🇸' : '🌐'}</span>
+                    <p className="font-mono text-primary font-bold text-base">{geo.ip_address}</p>
+                    {isOrigin && (
+                      <span className="text-[11px] px-2.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 font-semibold flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> Sender Domain Origin
+                      </span>
+                    )}
+                    {!isOrigin && isCloudMTA && (
+                      <span className="text-[11px] px-2.5 py-0.5 rounded bg-sky-900/60 text-sky-300 border border-sky-700/60 font-semibold flex items-center gap-1">
+                        <Server className="w-3 h-3" /> Enterprise Cloud MTA
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground text-xs mt-0.5 font-mono">
+                    {geo.hostname || geo.enrichment_source}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {geo.is_vpn && <span className="text-xs px-2 py-0.5 rounded bg-orange-950 text-orange-400 border border-orange-800 font-medium">VPN</span>}
+                  {geo.is_tor && <span className="text-xs px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800 font-medium">TOR</span>}
+                  {geo.is_hosting && <span className="text-xs px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800 font-medium">HOSTING</span>}
+                  {geo.is_proxy && <span className="text-xs px-2 py-0.5 rounded bg-yellow-950 text-yellow-400 border border-yellow-800 font-medium">PROXY</span>}
+                </div>
+              </div>
+
+              {/* Data Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm bg-secondary/40 p-3.5 rounded-lg border border-border/50">
+                <div>
+                  <p className="text-xs text-muted-foreground">Country</p>
+                  <p className="text-foreground font-medium flex items-center gap-1 mt-0.5">
+                    {geo.country_code ? `${geo.country_code} · ` : ''}{geo.country ?? 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">City & Region</p>
+                  <p className="text-foreground font-medium mt-0.5 truncate">
+                    {[geo.city, geo.region].filter(Boolean).join(', ') || 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">ISP / Organization</p>
+                  <p className="text-foreground font-medium mt-0.5 truncate" title={geo.isp || geo.org || ''}>
+                    {geo.isp ?? geo.org ?? 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">ASN</p>
+                  <p className="text-foreground font-mono text-xs mt-0.5">
+                    {geo.asn ?? 'Unknown'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Forensic note for each card */}
+              <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+                {isOrigin ? (
+                  <span className="text-emerald-300">
+                    ✓ <strong>Sender Domain Infrastructure:</strong> Physical location where the sender's domain DNS/Web host resides. Confirms domestic organizational presence.
+                  </span>
+                ) : (
+                  <span>
+                    ℹ️ <strong>SMTP Transmission Hop:</strong> Routing gateway utilized to transmit the email across the public internet.
+                  </span>
+                )}
+              </p>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -956,7 +1290,7 @@ export default function CaseDetailPage() {
               )}
             </div>
             <p className="text-muted-foreground text-sm">
-              {caseData.email_headers?.subject || 'Awaiting analysis'}
+              {caseData.email_headers?.[0]?.subject || 'Awaiting analysis'}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Submitted {formatDate(caseData.created_at)} · {formatFileSize(caseData.file_size_bytes)}
