@@ -10,13 +10,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select, text
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.auth import get_current_user
 from app.core.database import get_db
 from app.models.blockchain import BlockchainEntry
 from app.models.campaign import Campaign
-from app.models.case import Case, CaseStatus
+from app.models.case import Case, CaseStatus, AnalysisResult
 from app.models.ioc import IOC
 from app.schemas.stats import DashboardStats, ThreatTrendPoint
 from app.services.blockchain_service import BlockchainService
@@ -115,6 +116,7 @@ async def get_dashboard_stats(
     # ── Recent cases (last 5) ────────────────────────────────────
     recent_result = await db.execute(
         select(Case)
+        .options(selectinload(Case.email_headers))
         .where(active_filter)
         .order_by(Case.created_at.desc())
         .limit(5)
@@ -123,7 +125,7 @@ async def get_dashboard_stats(
     recent_cases = [
         {
             "case_id": c.case_id,
-            "subject": None,
+            "subject": c.email_headers[0].subject if c.email_headers and c.email_headers[0].subject else None,
             "severity": c.severity,
             "status": c.status,
             "created_at": c.created_at.isoformat() if c.created_at else None,
@@ -152,13 +154,20 @@ async def get_dashboard_stats(
         day = (thirty_days_ago + timedelta(days=offset)).strftime("%Y-%m-%d")
         threat_trend.append(ThreatTrendPoint(date=day, count=raw_trend.get(day, 0)))
 
+    # ── Average threat score ─────────────────────────────────────
+    avg_score_result = await db.execute(
+        select(func.avg(AnalysisResult.threat_score))
+    )
+    avg_threat_score: float = float(avg_score_result.scalar_one() or 0)
+
     logger.debug(
-        "Dashboard stats: total_cases=%d total_iocs=%d campaigns=%d blocks=%d integrity=%s",
+        "Dashboard stats: total_cases=%d total_iocs=%d campaigns=%d blocks=%d integrity=%s avg_score=%.1f",
         total_cases,
         total_iocs,
         total_campaigns,
         total_blocks,
         chain_integrity,
+        avg_threat_score,
     )
 
     return DashboardStats(
@@ -172,4 +181,5 @@ async def get_dashboard_stats(
         chain_integrity=chain_integrity,
         recent_cases=recent_cases,
         threat_trend=threat_trend,
+        avg_threat_score=round(avg_threat_score, 1),
     )

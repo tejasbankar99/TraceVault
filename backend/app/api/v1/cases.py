@@ -220,16 +220,26 @@ async def list_cases(
     # ── Paginate ─────────────────────────────────────────────────
     offset = (page - 1) * per_page
     result = await db.execute(
-        query.order_by(Case.created_at.desc()).offset(offset).limit(per_page)
+        query.options(selectinload(Case.email_headers))
+        .order_by(Case.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
     )
     cases = result.scalars().all()
+
+    case_responses = []
+    for c in cases:
+        resp = CaseResponse.model_validate(c)
+        if c.email_headers:
+            resp.subject = c.email_headers[0].subject
+        case_responses.append(resp)
 
     return CaseListResponse(
         total=total,
         page=page,
         per_page=per_page,
         total_pages=(total + per_page - 1) // per_page,
-        cases=[CaseResponse.model_validate(c) for c in cases],
+        cases=case_responses,
     )
 
 

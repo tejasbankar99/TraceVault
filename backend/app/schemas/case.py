@@ -47,6 +47,7 @@ class CaseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     created_by: Optional[uuid.UUID]
+    subject: Optional[str] = None
 
 
 class CasePagination(BaseModel):

@@ -64,7 +64,7 @@ async def list_iocs(
     if is_lookalike is not None:
         query = query.where(IOC.is_lookalike == is_lookalike)
     if q:
-        query = query.where(IOC.value.ilike(f"%{q}%"))
+        query = query.where(IOC.ioc_value.ilike(f"%{q}%"))
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total: int = count_result.scalar_one()
@@ -76,9 +76,9 @@ async def list_iocs(
     return IOCListResponse(
         total=total,
         page=page,
-        per_page=per_page,
-        pages=(total + per_page - 1) // per_page,
-        iocs=[IOCResponse.model_validate(ioc) for ioc in iocs],
+        page_size=per_page,
+        total_pages=(total + per_page - 1) // per_page,
+        items=[IOCResponse.model_validate(ioc) for ioc in iocs],
     )
 
 
@@ -205,7 +205,7 @@ async def get_case_iocs(
         # Verify case exists to give a meaningful 404
         from app.models.case import Case, CaseStatus
         case_result = await db.execute(
-            select(Case).where(Case.id == case_id, Case.status != CaseStatus.DELETED)
+            select(Case).where(Case.case_id == case_id, Case.status != CaseStatus.DELETED)
         )
         if case_result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case {case_id} not found")

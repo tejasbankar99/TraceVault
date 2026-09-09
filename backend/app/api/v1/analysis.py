@@ -19,6 +19,7 @@ from app.api.v1.auth import get_current_user
 from app.core.database import get_db
 from app.models.case import Case, CaseStatus
 from app.schemas.analysis import AnalysisResultResponse, HeaderAnalysisResponse, RelayHopResponse
+from app.schemas.geo import GeoIntelligenceResponse
 from app.services.analysis_pipeline import AnalysisPipeline
 
 logger = logging.getLogger(__name__)
@@ -183,7 +184,6 @@ async def analysis_stream(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
         },
     )
 
@@ -264,3 +264,24 @@ async def get_relay_path(
         )
 
     return [RelayHopResponse.model_validate(hop) for hop in sorted(case.relay_hops, key=lambda h: h.hop_index)]
+
+
+@router.get(
+    "/{case_id}/geo",
+    response_model=list[GeoIntelligenceResponse],
+    summary="Retrieve geo intelligence for IPs found in a case",
+)
+async def get_geo_intelligence(
+    case_id: str,
+    current_user: Annotated[object, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+) -> list[GeoIntelligenceResponse]:
+    """Return all geo-IP enrichment records for a completed case."""
+    from app.models.geo import GeoIntelligence
+    from sqlalchemy import select as sa_select
+
+    result = await db.execute(
+        sa_select(GeoIntelligence).where(GeoIntelligence.case_id == case_id)
+    )
+    records = result.scalars().all()
+    return [GeoIntelligenceResponse.model_validate(r) for r in records]

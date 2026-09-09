@@ -99,10 +99,7 @@ async def list_blockchain_entries(
 
     return BlockchainListResponse(
         total=total,
-        page=page,
-        per_page=per_page,
-        pages=(total + per_page - 1) // per_page,
-        entries=[BlockchainEntryResponse.model_validate(e) for e in entries],
+        items=[BlockchainEntryResponse.model_validate(e) for e in entries],
     )
 
 
