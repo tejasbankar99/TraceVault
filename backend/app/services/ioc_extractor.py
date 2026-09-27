@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from app.utils.constants import (
     IOC_TYPES,
+    RANSOMWARE_KEYWORDS,
     SEVERITY_LEVELS,
     SUSPICIOUS_TLDS,
     URL_SHORTENERS,
@@ -62,7 +63,9 @@ class ExtractedIOC:
     is_lookalike: bool = False
     lookalike_target: str | None = None
     is_shortened_url: bool = False
+    has_ransomware_indicators: bool = False    # True if value appears in RANSOMWARE_KEYWORDS
     metadata: dict = field(default_factory=dict)
+
 
 
 # ---------------------------------------------------------------------------
