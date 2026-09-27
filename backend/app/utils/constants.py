@@ -145,6 +145,9 @@ SUSPICIOUS_TLDS: set[str] = {
     ".website", ".site", ".online", ".tech", ".store", ".live", ".club",
     ".biz", ".link", ".pw", ".cc",
     ".to", ".ws", ".nu",
+    # Additional high-risk TLDs (added Sep 2026)
+    ".buzz", ".fun", ".rest", ".quest", ".cfd", ".bond", ".hair", ".beauty",
+    ".makeup", ".skin", ".monster", ".cyou", ".icu", ".sbs",
 }
 
 # ---------------------------------------------------------------------------
@@ -304,4 +307,19 @@ PHISHING_KEYWORDS: list[str] = [
     # Generic
     "personal information", "social security", "date of birth",
     "mother maiden name", "security question",
+]
+
+# ---------------------------------------------------------------------------
+# Ransomware / malware delivery keywords
+# ---------------------------------------------------------------------------
+
+RANSOMWARE_KEYWORDS: list[str] = [
+    "enable macros", "enable editing", "enable content",
+    "protected document", "encrypted document", "view content",
+    "macro", "docm", "xlsm", "enable", "allow",
+    "your files have been encrypted", "files are encrypted",
+    "all your files", "ransom", "bitcoin", "btc payment",
+    "decrypt your files", "decryption key", "recovery key",
+    "pay within", "do not contact police", "do not shutdown",
+    ".onion", "tor browser", "dark web",
 ]
