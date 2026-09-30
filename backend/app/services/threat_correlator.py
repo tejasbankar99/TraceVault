@@ -7,8 +7,9 @@ Strategy:
   - Build an IOC → cases mapping from the database.
   - Weight shared IOCs by type (file hashes > IPs > domains > URLs > emails).
   - Normalise to a similarity score in [0, 1].
-  - Cases with similarity > 0.3 are considered related.
+  - Cases with similarity > 0.3 are considered related (configurable threshold).
   - If ≥1 related case exists, assign or create a Campaign record.
+  - Classify the attack vector (PHISHING / BEC / MALWARE / SPAM) from IOC patterns.
   - Expose a Cytoscape.js-compatible threat graph for the frontend.
 """
 
@@ -37,6 +38,9 @@ class CorrelationResult:
     related_cases: dict            # {case_id: {"shared_iocs": [...], "similarity_score": float}}
     campaign_id: Optional[str]
     is_part_of_campaign: bool
+    campaign_confidence: float = 0.0        # 0.0–1.0 confidence that this is a real campaign
+    attack_vector: str = "UNKNOWN"          # Detected attack pattern: PHISHING / BEC / MALWARE / SPAM
+    total_related_cases: int = 0            # Count of correlated cases across DB
 
 
 # ---------------------------------------------------------------------------
