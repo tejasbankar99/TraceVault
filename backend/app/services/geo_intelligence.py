@@ -55,6 +55,9 @@ class IPIntelligenceResult:
     ptr_record: Optional[str] = None
     whois_data: dict = field(default_factory=dict)
     enrichment_source: Optional[str] = None
+    abuse_score: int = 0                           # 0-100 abuse confidence score
+    threat_feeds_hits: list[str] = field(default_factory=list)  # Feed names that flagged this IP
+    abuse_reports_count: int = 0                   # Number of abuse reports on record
 
 
 @dataclass
@@ -66,8 +69,11 @@ class DomainIntelligenceResult:
     expiration_date: Optional[object] = None
     registrant_country: Optional[str] = None
     domain_age_days: Optional[int] = None
-    is_newly_registered: bool = False
+    is_newly_registered: bool = False              # True if domain < 30 days old
     dns_records: dict = field(default_factory=dict)
+    name_servers: list[str] = field(default_factory=list)
+    privacy_protected: bool = False                # WHOIS privacy guard active
+    uses_bulletproof_hosting: bool = False         # Known bulletproof hosting registrar
 
 
 # ---------------------------------------------------------------------------
