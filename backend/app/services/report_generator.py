@@ -53,13 +53,18 @@ class ReportGeneratorService:
 
     def _prepare_context(self, case_data: dict) -> dict[str, Any]:
         """Normalize context so all template variables and aliases are populated."""
+        import uuid as _uuid
         ctx: dict[str, Any] = {
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "platform_name": "TraceVault",
-            "platform_version": "1.0.0",
+            "platform_version": "1.1.0",
+            "report_id": str(_uuid.uuid4()),   # Unique ID per generated report
         }
         if isinstance(case_data, dict):
             ctx.update(case_data)
+            # Populate case_hash alias for evidence certificate section
+            if "sha256_hash" in ctx and "case_hash" not in ctx:
+                ctx["case_hash"] = ctx["sha256_hash"]
             # Ensure aliases so all template variables work seamlessly
             if "case" not in ctx:
                 ctx["case"] = case_data
@@ -82,6 +87,7 @@ class ReportGeneratorService:
             if "report_metadata" not in ctx:
                 ctx["report_metadata"] = {
                     "generated_at": ctx["generated_at"],
+                    "report_id": ctx["report_id"],
                     "analyst": ctx.get("analyst_name") or "Senior Forensic Examiner",
                     "classification": "CONFIDENTIAL — FOR OFFICIAL USE ONLY",
                 }
